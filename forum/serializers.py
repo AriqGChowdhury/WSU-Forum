@@ -3,7 +3,6 @@ from rest_framework import serializers
 from .models import *
 from .services.service import *
 
-
 class UserRegistrationSerializer(serializers.ModelSerializer):
     pass2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
     email = serializers.CharField()
@@ -32,10 +31,6 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_user(self, obj):
         return obj.user.username
-
-
-    ## make sure reset pass, and other current functions are working properly
-    ## create models and serializers for user functions like post, likes, comments, bio, profile pic, subspaces, etc
 
 class SearchSerializer(serializers.Serializer):
     searchText = serializers.CharField(max_length=100)

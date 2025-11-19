@@ -12,6 +12,9 @@ from rest_framework.parsers import MultiPartParser, JSONParser
 from .services.service import *
 from .services.notifications import *
 
+## Application follows SRP from SOLID Design ## 
+
+
 # Create your views here.
 class UserRegistrationViews(APIView):
     permission_classes = [AllowAny]
@@ -78,7 +81,8 @@ class ActivateAccount(APIView):
         if activate:
             return Response({"message": "success"}, status=status.HTTP_200_OK)
         return Response({"Error": "Account not activated"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+#View all posts (tied to homepage for now) will update when subspace code is created   
 class AllPostsViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -95,9 +99,11 @@ class AllPostsViews(APIView):
         serializer = PostSerializer(all_posts, many=True)
         return Response(serializer.data)
 
+#Click onto single post, view comments
 class SinglePostViews(APIView):
     pass
 
+#Search Bar tied to homepage
 class SearchViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -113,3 +119,4 @@ class SearchViews(APIView):
             })
         return Response({"message": "error"})
 
+# work on likes, comments, bio, profile pic, subspaces, etc
