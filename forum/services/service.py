@@ -3,46 +3,99 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from forum.models import *
 from django.db.models import Q
+
 class RegisterService:
-    def create(validated_data):
-        validated_data.pop("pass2", None)
+    def __init__(self, validated_data):
+        self.__validated_data = dict(validated_data)
+
+    #public
+    def register_user(self):
+        user = self.__create()
+        self.__send_email_verification(user)
+
+    #private
+    def __create(self):
+        self.__validated_data.pop("pass2", None)
         user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password'],
+            username=self.__validated_data['username'],
+            email=self.__validated_data['email'],
+            password=self.__validated_data['password'],
             is_active=False
         )
-        EmailVerificationNotif.send_verification_email(user)
         return user
     
+    def __send_email_verification(self, user):
+        EmailVerificationNotif.send_verification_email(user)
+
 
 class LoginService:
-    def post(username, password):
-        user = authenticate(username=username, password=password)
+    def __init__(self, username, password):
+        self.__username = username
+        self.__passwd = password
+    
+    #public
+    def login_user(self):
+        return self.__post()
+
+    #private
+    def __post(self):
+        user = authenticate(username=self.__username, password=self.__passwd)
         return user
 
 
 class DeleteService:
-    def delete(user):
+    def __init__(self, user):
+        self.__user = user
+    
+    #public
+    def delete_user(self):
+        return self.__delete()
+    
+    #private
+    def __delete(self):
         try:
-            user.delete()
+            self.__user.delete()
             return True
-        except user.DoesNotExist:
+        except User.DoesNotExist:
             return False
-        
+
+#Updated SearchService Class
 class SearchService:
-    def get(data):
-        data = data['searchText']
-        searchPpl = User.objects.all().filter(username__icontains=data)
-        searchPosts = Post.objects.all().filter(
-            Q(title__icontains=data) | 
-            Q(body__icontains=data) | 
-            Q(user__username__icontains=data)
+    def __init__(self, data):
+        self.__data = self.__text(data)
+
+    #public
+    def search(self):
+        people = self.__search_users()
+        posts = self.__search_posts()
+        return {"People": people, "Posts": posts}
+
+    
+    #private
+    def __text(self, data):
+        return data.get("searchText", "").strip()
+
+    def __search_users(self):
+        return User.objects.filter(username__icontains=self.__data)
+
+    def __search_posts(self):
+        return Post.objects.filter(
+            Q(title__icontains=self.__data) |
+            Q(body__icontains=self.__data) |
+            Q(user__username__icontains=self.__data)
         )
-        return {"People": searchPpl, "Posts": searchPosts}
-        #search topics when you create subspaces
+
 
 class ResetPassService:
-    def post(user, newPass):
-        user.set_password(newPass)
-        user.save()
+    def __init__(self, newPass, user):
+        self.__newPass = newPass
+        self.__user = user
+
+    #Public
+    def post(self):
+        self.__reset_password()
+
+    #Private
+    def __reset_password(self):
+        self.__user.set_password(self.__newPass)
+        self.__user.save()

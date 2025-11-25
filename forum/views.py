@@ -16,6 +16,10 @@ from .services.notifications import *
 
 
 # Create your views here.
+
+### Ensure users cannot register with usernames already taken
+### Ensure users cannot register multiple accounts with same email
+# Password restrictions
 class UserRegistrationViews(APIView):
     permission_classes = [AllowAny]
 
@@ -23,7 +27,8 @@ class UserRegistrationViews(APIView):
         print(request.data)
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            RegisterService.create(serializer.validated_data)
+            register_service = RegisterService(serializer.validated_data)
+            register_service.register_user()
             #Redirect to sign in after!
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -38,7 +43,8 @@ class UserLoginViews(APIView):
     })
 
     def post(self, request):
-        user = LoginService.post(username = request.data['username'], password = request.data['password'])
+        login_service = LoginService(username = request.data['username'], password = request.data['password'])
+        user = login_service.login_user()
         if user is None or user.is_active == False:
             raise AuthenticationFailed('Invalid')
         refresh = RefreshToken.for_user(user)
@@ -59,8 +65,10 @@ class RequestResetView(APIView):
     def post(self, request):
         serializer = ResetPassSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            ResetPassService.post(user=request.user, newPass=serializer.validated_data['newPassword'])
-        return Response({"message": "Password changed"}, status=status.HTTP_200_OK)
+            reset_pass_service = ResetPassService(user=request.user, newPass=serializer.validated_data['newPassword'])
+            reset_pass_service.post()
+            return Response({"message": "Password changed"}, status=status.HTTP_200_OK)
+        return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
 #Delete Account
 class DeleteAccountViews(APIView):
@@ -68,7 +76,8 @@ class DeleteAccountViews(APIView):
     authentication_classes = [JWTAuthentication]
 
     def delete(self, request):
-        deleteAccount = DeleteService.delete(request.user)
+        delete_service = DeleteService(request.user)
+        deleteAccount = delete_service.delete_user()
         if not deleteAccount:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'message': 'Account has been deleted.'}, status=status.HTTP_200_OK)

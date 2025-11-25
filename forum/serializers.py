@@ -41,12 +41,12 @@ class UserSerializer(serializers.ModelSerializer):
         fields =['id', 'username']
 
 class ResetPassSerializer(serializers.Serializer):
-    oldPassword = serializers.CharField(style={'input_type': 'password'}, write_only=True)
-    newPassword = serializers.CharField(style={'input_type': 'password'}, write_only=True)
-    confirm = serializers.CharField(style={'input_type': 'password'}, write_only=True)
+    oldPassword = serializers.CharField(style={'input_type': 'password'}, write_only=True, required=True)
+    newPassword = serializers.CharField(style={'input_type': 'password'}, write_only=True, required=True)
+    confirm = serializers.CharField(style={'input_type': 'password'}, write_only=True, required=True)
     
     def validate(self, attrs):
-        user = self.context['request'].user        
+        user = self.context['request'].user
         if not user.check_password(attrs['oldPassword']):
             raise serializers.ValidationError({"message": "Incorrect password"})
         if attrs['newPassword'] != attrs['confirm']:
