@@ -29,3 +29,15 @@ class SavePost(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+class Student(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    major = models.CharField(max_length=75)
+    classification = models.CharField(max_length=20)
+    profile_picture = models.ImageField(blank=True)
+    bio = models.CharField(max_length=200, blank=True)
+
+class Faculty(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    department = models.CharField(max_length=100)
+    profile_picture = models.ImageField(blank=True)
+    bio = models.CharField(max_length=200, blank=True)

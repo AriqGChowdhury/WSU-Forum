@@ -10,5 +10,7 @@ urlpatterns = [
     path('posts', views.AllPostsViews.as_view(), name='post'),
     path('search', views.SearchViews.as_view(), name='search'),
     # ^
+    path('settings', views.SettingsViews.as_view(), name='settings'),
     path('activate/<uidb64>/<token>', views.ActivateAccount.as_view(), name='activate')
 ]
+

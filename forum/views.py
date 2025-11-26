@@ -17,14 +17,12 @@ from .services.notifications import *
 
 # Create your views here.
 
-### Ensure users cannot register with usernames already taken
 ### Ensure users cannot register multiple accounts with same email
 # Password restrictions
 class UserRegistrationViews(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        print(request.data)
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             register_service = RegisterService(serializer.validated_data)
@@ -127,5 +125,21 @@ class SearchViews(APIView):
                 "Posts": posts
             })
         return Response({"message": "error"})
+    
+class SettingsViews(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def patch(self, request):
+        pass
+        #WORK ON THIS FIRST
+        #CREATE SEPARTE SERIALIZERS FOR FACULTY AND STUDENT
+        #ALLOW PARTIAL UPDATES
+
+    def get(self, request):
+        settings_service = SettingsService(request.user)
+        info = settings_service.get_profile()
+        return Response({"user": info})
+    
 
 # work on likes, comments, bio, profile pic, subspaces, etc

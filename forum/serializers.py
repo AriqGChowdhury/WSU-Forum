@@ -6,9 +6,14 @@ from .services.service import *
 class UserRegistrationSerializer(serializers.ModelSerializer):
     pass2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
     email = serializers.CharField()
+    role = serializers.CharField()
+    major = serializers.CharField(allow_blank=True)
+    classification = serializers.CharField(allow_blank=True)
+    department = serializers.CharField(allow_blank=True)
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'pass2']
+        fields = ['username', 'email', 'password', 'pass2', 'role', 'major', 'classification', 'department']
         extra_kwargs = {
             'password': {'write_only': True},
         }
@@ -19,6 +24,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"email": "Please use your email ending in wayne.edu to register successfully"})
         if attrs['password'] != attrs['pass2']:
             raise serializers.ValidationError({'password': 'password fields do not match'})
+        if attrs['role'].lower() == "student":
+            if attrs['major'] == "" or attrs['classification'] == "":
+                raise serializers.ValidationError({"detail": "Major or classification cannot be empty"})
+        if attrs['role'].lower() == "faculty":
+            if attrs['department'] == "":
+                raise serializers.ValidationError({"detail": "Department cannot be null"})
         return attrs
     
     
@@ -52,3 +63,10 @@ class ResetPassSerializer(serializers.Serializer):
         if attrs['newPassword'] != attrs['confirm']:
             raise serializers.ValidationError({'message': "passwords do not match"})
         return attrs
+
+class UpdateSerializer(serializers.Serializer):
+    bio = models.CharField(max_length=200, blank=True)
+    profile_picture = models.ImageField(blank=True)
+    major = models.CharField(max_length=75)
+    department = models.CharField(max_length=100)
+    classification = models.CharField(max_length=20)

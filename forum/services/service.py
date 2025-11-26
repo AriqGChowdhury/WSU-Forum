@@ -11,11 +11,20 @@ class RegisterService:
     #public
     def register_user(self):
         user = self.__create()
+        self.__role(user)
         self.__send_email_verification(user)
 
     #private
+    def __role(self, user):
+        print(self.__validated_data['role'])
+        if self.__validated_data['role'].lower() == "student":
+            Student.objects.create(user=user, major=self.__validated_data['major'], classification=self.__validated_data['classification'])
+        elif self.__validated_data['role'].lower() == "faculty":
+            Faculty.objects.create(user=user, department=self.__validated_data['department'])
+
     def __create(self):
         self.__validated_data.pop("pass2", None)
+        print(self.__validated_data)
         user = User.objects.create_user(
             username=self.__validated_data['username'],
             email=self.__validated_data['email'],
@@ -99,3 +108,47 @@ class ResetPassService:
     def __reset_password(self):
         self.__user.set_password(self.__newPass)
         self.__user.save()
+
+
+class SettingsService:
+    def __init__(self, user):
+        self.__user = user
+
+    #Public
+    def get_profile(self):
+        return self.__get_settings()
+
+    def update_profile(self):
+        pass
+
+    #Private
+    def __update_settings(self):
+        pass
+
+
+    def __get_settings(self):
+        students = Student.objects.filter(user=self.__user)
+        faculty = Faculty.objects.filter(user=self.__user)
+        if students:
+            if students[0].profile_picture:
+                profile_pic = students[0].profile_picture
+            else:
+                profile_pic = ""
+            info = {
+                "Bio": students[0].bio, 
+                "Profile_Picture": profile_pic,
+                "Major": students[0].major,
+                "Class": students[0].classification
+            }
+            return info
+        elif faculty:
+            if faculty[0].profile_picture:
+                profile_pic = students[0].profile_picture
+            else:
+                profile_pic = ""
+            info = {
+                "Bio": faculty[0].bio, 
+                "Profile_Picture": profile_pic,
+                "Department": faculty[0].department
+            }
+            return info
