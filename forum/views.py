@@ -105,6 +105,7 @@ class AllPostsViews(APIView):
         all_posts = Post.objects.all()
         serializer = PostSerializer(all_posts, many=True)
         return Response(serializer.data)
+    
 
 #Click onto single post, view comments
 class SinglePostViews(APIView):
@@ -131,10 +132,18 @@ class SettingsViews(APIView):
     authentication_classes = [JWTAuthentication]
 
     def patch(self, request):
-        pass
-        #WORK ON THIS FIRST
-        #CREATE SEPARTE SERIALIZERS FOR FACULTY AND STUDENT
-        #ALLOW PARTIAL UPDATES
+        update_service = SettingsService(request.user)
+        role = update_service.get_role_for_update()
+        model = update_service.update_profile()
+        if role == "student":
+            serializer = StudentSerializer(model, data=request.data, partial=True)
+        elif role == "faculty":
+            serializer = FacultySerializer(model, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response({"message": "user has been updated"}, status=status.HTTP_200_OK)
+        return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
 
     def get(self, request):
         settings_service = SettingsService(request.user)
@@ -142,4 +151,6 @@ class SettingsViews(APIView):
         return Response({"user": info})
     
 
-# work on likes, comments, bio, profile pic, subspaces, etc
+    
+
+# work on likes, comments on all post views and single post views next

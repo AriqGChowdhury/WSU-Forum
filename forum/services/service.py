@@ -115,40 +115,51 @@ class SettingsService:
         self.__user = user
 
     #Public
+    def get_role_for_update(self):
+        role = self.__get_role()
+        if type(role[0]) == Student:
+            return "student"
+        elif type(role[0]) == Faculty:
+            return "Faculty"
+
     def get_profile(self):
-        return self.__get_settings()
+        role = self.__get_role()
+        return self.__get_settings(role)
 
     def update_profile(self):
-        pass
+        return self.__get_role()[0]
 
     #Private
-    def __update_settings(self):
-        pass
-
-
-    def __get_settings(self):
+    def __get_role(self):
         students = Student.objects.filter(user=self.__user)
         faculty = Faculty.objects.filter(user=self.__user)
         if students:
-            if students[0].profile_picture:
-                profile_pic = students[0].profile_picture
+            return students
+        elif faculty:
+            return faculty
+
+    def __get_settings(self, role):
+        
+        if type(role[0]) == Student:
+            if role[0].profile_picture:
+                profile_pic = role[0].profile_picture
             else:
                 profile_pic = ""
             info = {
-                "Bio": students[0].bio, 
+                "Bio": role[0].bio, 
                 "Profile_Picture": profile_pic,
-                "Major": students[0].major,
-                "Class": students[0].classification
+                "Major": role[0].major,
+                "Class": role[0].classification
             }
             return info
-        elif faculty:
-            if faculty[0].profile_picture:
-                profile_pic = students[0].profile_picture
+        elif type(role[0]) == Faculty:
+            if role[0].profile_picture:
+                profile_pic = role[0].profile_picture
             else:
                 profile_pic = ""
             info = {
-                "Bio": faculty[0].bio, 
+                "Bio": role[0].bio, 
                 "Profile_Picture": profile_pic,
-                "Department": faculty[0].department
+                "Department": role[0].department
             }
             return info

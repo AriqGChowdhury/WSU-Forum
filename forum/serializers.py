@@ -35,11 +35,33 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
 class PostSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
+    comment_amt = serializers.SerializerMethodField()
+    like_amt = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = "__all__"
 
+    def get_like_amt(self, obj):
+        likes = Likes.objects.filter(post=obj)
+        return len(likes)
+
+    def get_comment_amt(self, obj):
+        comments = Comments.objects.filter(post=obj)
+        return len(comments)
+        
+
+    def get_profile_picture(self, obj):
+        student = Student.objects.filter(user=obj.user)
+        faculty = Faculty.objects.filter(user=obj.user)
+        if student:
+            if student[0].profile_picture:
+                return student[0].profile_picture
+        elif faculty:
+            if faculty[0].profile_picture:
+                return faculty[0].profile_picture
+        
     def get_user(self, obj):
         return obj.user.username
 
@@ -64,9 +86,22 @@ class ResetPassSerializer(serializers.Serializer):
             raise serializers.ValidationError({'message': "passwords do not match"})
         return attrs
 
-class UpdateSerializer(serializers.Serializer):
-    bio = models.CharField(max_length=200, blank=True)
-    profile_picture = models.ImageField(blank=True)
-    major = models.CharField(max_length=75)
-    department = models.CharField(max_length=100)
-    classification = models.CharField(max_length=20)
+class StudentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Student
+        fields = ["profile_picture", "bio", "major", "classification"]
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError({"fields error": "insert correct field names"})
+        return attrs
+
+class FacultySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Faculty
+        fields = ["profile_picture", "bio", "department"]
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError({"fields error": "insert correct field names"})
+        return attrs
