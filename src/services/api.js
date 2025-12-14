@@ -2,7 +2,6 @@
  * API Service Layer
  * =================
  * Centralized API configuration and methods.
- * Currently uses mock data - swap BASE_URL and remove mocks for production.
  */
 
 // ============================================================================
@@ -10,9 +9,9 @@
 // ============================================================================
 
 const CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || '/api',
+  BASE_URL: 'http://localhost:5000/api',  // Backend API URL
   TIMEOUT: 10000,
-  USE_MOCKS: true, // Set to false when backend is ready
+  USE_MOCKS: false,  // Set to true for mock data, false for real backend
 };
 
 // ============================================================================
@@ -31,11 +30,12 @@ class ApiClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'include',  // Important for cookies
       ...options,
     };
 
     // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -43,15 +43,19 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       
+      // Handle empty responses
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+      
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new ApiError(response.status, error.message || 'Request failed');
+        throw new ApiError(response.status, data.message || 'Request failed');
       }
 
-      return response.json();
+      return data;
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      throw new ApiError(0, 'Network error');
+      console.error('API Error:', error);
+      throw new ApiError(0, error.message || 'Network error');
     }
   }
 
@@ -383,24 +387,68 @@ export const api = {
         }
         throw new ApiError(401, 'Invalid credentials');
       }
-      return client.post('/auth/login', { email, password });
+      
+      // Real API call
+      const response = await client.post('/auth/login', { email, password });
+      
+      // Store token if successful
+      if (response.success && response.accessToken) {
+        localStorage.setItem('accessToken', response.accessToken);
+      }
+      
+      return {
+        user: response.user,
+        token: response.accessToken,
+        success: response.success,
+        message: response.message,
+      };
     },
 
     async signUp(data) {
       if (CONFIG.USE_MOCKS) {
         return mockResponse({ user: { ...MOCK_DATA.user, ...data }, token: 'mock_token_123' }, 600);
       }
-      return client.post('/auth/register', data);
+      
+      // Real API call
+      const response = await client.post('/auth/register', {
+        email: data.email,
+        password: data.password,
+        name: data.name,
+        role: 1,  // Student = 1
+        major: data.major || null,
+        year: data.year || null,
+      });
+      
+      // Store token if successful
+      if (response.success && response.accessToken) {
+        localStorage.setItem('accessToken', response.accessToken);
+      }
+      
+      return {
+        user: response.user,
+        token: response.accessToken,
+        success: response.success,
+        message: response.message,
+      };
     },
 
     async signOut() {
       if (CONFIG.USE_MOCKS) {
+        localStorage.removeItem('accessToken');
         return mockResponse({ success: true }, 200);
       }
-      return client.post('/auth/logout');
+      
+      try {
+        await client.post('/auth/logout');
+      } catch (e) {
+        // Ignore logout errors
+      } finally {
+        localStorage.removeItem('accessToken');
+      }
+      return { success: true };
     },
 
-    async verifyEmail(code) {
+    async verifyEmail(email, code) {
       if (CONFIG.USE_MOCKS) {
         await delay(400);
         if (code === '123456') {
@@ -408,7 +456,7 @@ export const api = {
         }
         throw new ApiError(400, 'Invalid verification code');
       }
-      return client.post('/auth/verify', { code });
+      return client.post('/auth/verify-email', { email, code });
     },
 
     async forgotPassword(email) {
@@ -422,7 +470,16 @@ export const api = {
       if (CONFIG.USE_MOCKS) {
         return mockResponse({ user: MOCK_DATA.user });
       }
-      return client.get('/auth/me');
+      
+      const token = localStorage.getItem('accessToken');
+      if (!token) return { user: null };
+      
+      try {
+        return await client.get('/users/me');
+      } catch (e) {
+        localStorage.removeItem('accessToken');
+        return { user: null };
+      }
     },
   },
 
