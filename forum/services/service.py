@@ -1,8 +1,12 @@
 from .notifications import *
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.shortcuts import get_object_or_404
 from forum.models import *
 from django.db.models import Q
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Count
 
 class RegisterService:
     def __init__(self, validated_data):
@@ -163,3 +167,118 @@ class SettingsService:
                 "Department": role[0].department
             }
             return info
+        
+class LikeService:
+    def __init__(self, user, post_id):
+        self.__user = user
+        self.__postID = post_id
+    
+    def like_post(self):
+        return self.__send_like()
+    
+    def __send_like(self):
+        like, created = Likes.objects.get_or_create(post_id=self.__postID, user=self.__user)
+        print("liked: ", like)
+        print("created: ", created)
+        if not created:
+            like.delete()
+            return False
+        return True
+    
+class CommentService:
+    def __init__(self, user, post_id, comment_id):
+        self.__user = user
+        self.__postID = post_id
+        self.__commentID = comment_id
+
+    def delete(self):
+        return self.__delete_comment()
+    
+    def __delete_comment(self):
+        comment = get_object_or_404(Comments, id=self.__commentID)
+        if comment:
+            comment.delete()
+            return True
+        return False
+        
+class SinglePostService:
+    def __init__(self, post_id):
+        self.__postID = post_id
+
+    def get_post(self):
+        return self.__get_singlePost()
+    
+    def __get_singlePost(self):
+        post = get_object_or_404(Post, id=self.__postID)
+        return post
+    
+class SaveService:
+    def __init__(self, user, post_id):
+        self.__user = user
+        self.__postID = post_id
+
+    def save(self):
+        return self.__save()
+
+    def __save(self):
+        saved, created = SavePost.objects.get_or_create(post_id=self.__postID, user=self.__user)
+        if not created:
+            saved.delete()
+            return False
+        return True
+    
+class ProfileService:
+    def __init__(self, user):
+        self.__user = user
+
+    def get_profile(self):
+        return self.__get_profile()
+
+    def __get_profile(self):
+        posts = Post.objects.filter(user=self.__user)
+        commented_on = Comments.objects.filter(user=self.__user)
+        saved_posts = SavePost.objects.filter(user=self.__user)
+        return [posts, commented_on, saved_posts]
+    
+    def delete(self, id):
+        return self.__delete(id)
+        
+    def __delete(self):
+        post = get_object_or_404(Post, id=id, user=self.__user)
+        if post:
+            post.delete()
+            return True
+        return False
+    
+class SubforumService:
+    def __init__(self, subforum_id):
+        self.__subforumID = subforum_id
+
+    def update_statistics(self):
+        return self.__update_statistics()
+    
+    def __update_statistics(self):
+        try:
+            subforum = Subforum.objects.get(id=self.__subforumID)
+        except:
+            return None
+        
+        stats,_ = SubforumStat.objects.get_or_create(subforum=subforum)
+        now = timezone.now()
+        today = now.replace(hour=0,minute=0,second=0,microsecond=0)
+        week = now - timedelta(days=7)
+
+        posts = Post.objects.filter(subforum=subforum)
+        stats.posts_today = posts.filter(created_at__gte=today).count()
+        stats.posts_this_week = posts.filter(created_at__gte=week).count()
+        stats.total_posts = posts.count()
+
+        comments = Comments.objects.filter(post__subforum=subforum)
+        stats.comments_today = comments.filter(created_at__gte=today).count()
+        stats.total_comments = comments.count()
+
+        active_users = (comments.filter(created_at__gte=week).values("user").distinct().count())
+        stats.active_users_this_week = active_users
+
+        stats.save()
+        return stats
