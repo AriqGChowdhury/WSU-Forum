@@ -4,93 +4,44 @@
  * Centralized API configuration and methods.
  */
 
+import axios from "axios";
+import { ACCESS_TOKEN } from "../constants";
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
 const CONFIG = {
-  BASE_URL: 'http://localhost:5000/api',  // Backend API URL
+  BASE_URL: import.meta.env.VITE_API_URL,  // Backend API URL
   TIMEOUT: 10000,
   USE_MOCKS: false,  // Set to true for mock data, false for real backend
 };
 
 // ============================================================================
-// HTTP CLIENT
+//  AXIOS CLIENT
 // ============================================================================
 
-class ApiClient {
-  constructor(baseURL) {
-    this.baseURL = baseURL;
-  }
+const client = axios.create({
+  baseURL: CONFIG.BASE_URL,
+  timeout: CONFIG.TIMEOUT,
+  headers: { 'Content-Type': 'application/json' },
+});
 
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      credentials: 'include',  // Important for cookies
-      ...options,
-    };
-
-    // Add auth token if available
-    const token = localStorage.getItem('accessToken');
+// Add token automatically to every request
+client.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem(ACCESS_TOKEN); // ← Using constant
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-    try {
-      const response = await fetch(url, config);
-      
-      // Handle empty responses
-      const text = await response.text();
-      const data = text ? JSON.parse(text) : {};
-      
-      if (!response.ok) {
-        throw new ApiError(response.status, data.message || 'Request failed');
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      console.error('API Error:', error);
-      throw new ApiError(0, error.message || 'Network error');
-    }
-  }
-
-  get(endpoint, params = {}) {
-    const query = new URLSearchParams(params).toString();
-    const url = query ? `${endpoint}?${query}` : endpoint;
-    return this.request(url, { method: 'GET' });
-  }
-
-  post(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  put(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  patch(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  delete(endpoint) {
-    return this.request(endpoint, { method: 'DELETE' });
-  }
-}
-
+// ============================================================================
+// API ERROR CLASS
+// ============================================================================
 class ApiError extends Error {
   constructor(status, message) {
     super(message);
@@ -355,7 +306,6 @@ const MOCK_DATA = {
 // ============================================================================
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const mockResponse = async (data, delayMs = 300) => {
   await delay(delayMs);
   return JSON.parse(JSON.stringify(data)); // Deep clone
@@ -365,51 +315,46 @@ const mockResponse = async (data, delayMs = 300) => {
 // API SERVICE
 // ============================================================================
 
-const client = new ApiClient(CONFIG.BASE_URL);
-
-export const api = {
+const api = {
   // --------------------------------------------------------------------------
   // AUTH
   // --------------------------------------------------------------------------
   auth: {
     async signInWithSSO() {
       if (CONFIG.USE_MOCKS) {
-        return mockResponse({ user: MOCK_DATA.user, token: 'mock_token_123' }, 600);
+        return mockResponse({ user: MOCK_DATA.user, token: 'mock_token_123' });
       }
-      return client.post('/auth/sso');
+      const response = await client.post('/auth/sso');
+      return response.data;
     },
 
     async signIn(email, password) {
       if (CONFIG.USE_MOCKS) {
         await delay(500);
-        if (email && password) {
-          return { user: MOCK_DATA.user, token: 'mock_token_123' };
-        }
+        if (email && password) return { user: MOCK_DATA.user, token: 'mock_token_123' };
         throw new ApiError(401, 'Invalid credentials');
       }
-      
-      // Real API call
+
       const response = await client.post('/auth/login', { email, password });
-      
-      // Store token if successful
-      if (response.success && response.accessToken) {
-        localStorage.setItem('accessToken', response.accessToken);
+      const data = response.data;
+
+      if (data.success && data.accessToken) {
+        localStorage.setItem(ACCESS_TOKEN, data.accessToken); // ← Using constant
       }
-      
+
       return {
-        user: response.user,
-        token: response.accessToken,
-        success: response.success,
-        message: response.message,
+        user: data.user,
+        token: data.accessToken,
+        success: data.success,
+        message: data.message,
       };
     },
 
     async signUp(data) {
       if (CONFIG.USE_MOCKS) {
-        return mockResponse({ user: { ...MOCK_DATA.user, ...data }, token: 'mock_token_123' }, 600);
+        return mockResponse({ user: { ...MOCK_DATA.user, ...data }, token: 'mock_token_123' });
       }
-      
-      // Real API call
+
       const response = await client.post('/auth/register', {
         email: data.email,
         password: data.password,
@@ -418,66 +363,62 @@ export const api = {
         major: data.major || null,
         year: data.year || null,
       });
-      
-      // Store token if successful
-      if (response.success && response.accessToken) {
-        localStorage.setItem('accessToken', response.accessToken);
+
+      const resData = response.data;
+      if (resData.success && resData.accessToken) {
+        localStorage.setItem(ACCESS_TOKEN, resData.accessToken); // ← Using constant
       }
-      
+
       return {
-        user: response.user,
-        token: response.accessToken,
-        success: response.success,
-        message: response.message,
+        user: resData.user,
+        token: resData.accessToken,
+        success: resData.success,
+        message: resData.message,
       };
     },
 
     async signOut() {
       if (CONFIG.USE_MOCKS) {
-        localStorage.removeItem('accessToken');
-        return mockResponse({ success: true }, 200);
+        localStorage.removeItem(ACCESS_TOKEN);
+        return mockResponse({ success: true });
       }
-      
+
       try {
         await client.post('/auth/logout');
-      } catch (e) {
-        // Ignore logout errors
-      } finally {
-        localStorage.removeItem('accessToken');
+      } catch (e) { /* ignore logout errors */ }
+      finally {
+        localStorage.removeItem(ACCESS_TOKEN);
       }
+
       return { success: true };
     },
 
     async verifyEmail(email, code) {
       if (CONFIG.USE_MOCKS) {
         await delay(400);
-        if (code === '123456') {
-          return { verified: true };
-        }
+        if (code === '123456') return { verified: true };
         throw new ApiError(400, 'Invalid verification code');
       }
-      return client.post('/auth/verify-email', { email, code });
+      const response = await client.post('/auth/verify-email', { email, code });
+      return response.data;
     },
 
     async forgotPassword(email) {
-      if (CONFIG.USE_MOCKS) {
-        return mockResponse({ sent: true }, 400);
-      }
-      return client.post('/auth/forgot-password', { email });
+      if (CONFIG.USE_MOCKS) return mockResponse({ sent: true });
+      const response = await client.post('/auth/forgot-password', { email });
+      return response.data;
     },
 
     async getMe() {
-      if (CONFIG.USE_MOCKS) {
-        return mockResponse({ user: MOCK_DATA.user });
-      }
-      
-      const token = localStorage.getItem('accessToken');
+      if (CONFIG.USE_MOCKS) return mockResponse({ user: MOCK_DATA.user });
+      const token = localStorage.getItem(ACCESS_TOKEN);
       if (!token) return { user: null };
-      
+
       try {
-        return await client.get('/users/me');
+        const response = await client.get('/users/me');
+        return response.data;
       } catch (e) {
-        localStorage.removeItem('accessToken');
+        localStorage.removeItem(ACCESS_TOKEN);
         return { user: null };
       }
     },
@@ -490,12 +431,11 @@ export const api = {
     async getAll(params = {}) {
       if (CONFIG.USE_MOCKS) {
         let posts = [...MOCK_DATA.posts];
-        if (params.topicId) {
-          posts = posts.filter((p) => p.topicId === params.topicId);
-        }
+        if (params.topicId) posts = posts.filter((p) => p.topicId === params.topicId);
         return mockResponse({ posts });
       }
-      return client.get('/posts', params);
+      const response = await client.get('/posts', { params });
+      return response.data;
     },
 
     async getById(id) {
@@ -504,7 +444,8 @@ export const api = {
         if (!post) throw new ApiError(404, 'Post not found');
         return mockResponse({ post });
       }
-      return client.get(`/posts/${id}`);
+      const response = await client.get(`/posts/${id}`);
+      return response.data;
     },
 
     async create(data) {
@@ -520,9 +461,10 @@ export const api = {
           ...data,
         };
         MOCK_DATA.posts.unshift(newPost);
-        return mockResponse({ post: newPost }, 400);
+        return mockResponse({ post: newPost });
       }
-      return client.post('/posts', data);
+      const response = await client.post('/posts', data);
+      return response.data;
     },
 
     async update(id, data) {
@@ -532,7 +474,8 @@ export const api = {
         MOCK_DATA.posts[index] = { ...MOCK_DATA.posts[index], ...data };
         return mockResponse({ post: MOCK_DATA.posts[index] });
       }
-      return client.patch(`/posts/${id}`, data);
+      const response = await client.patch(`/posts/${id}`, data);
+      return response.data;
     },
 
     async delete(id) {
@@ -541,7 +484,8 @@ export const api = {
         if (index !== -1) MOCK_DATA.posts.splice(index, 1);
         return mockResponse({ success: true });
       }
-      return client.delete(`/posts/${id}`);
+      const response = await client.delete(`/posts/${id}`);
+      return response.data;
     },
 
     async like(id) {
@@ -553,7 +497,8 @@ export const api = {
         }
         return mockResponse({ liked: post?.liked, likes: post?.likes });
       }
-      return client.post(`/posts/${id}/like`);
+      const response = await client.post(`/posts/${id}/like`);
+      return response.data;
     },
 
     async save(id) {
@@ -562,7 +507,8 @@ export const api = {
         if (post) post.saved = !post.saved;
         return mockResponse({ saved: post?.saved });
       }
-      return client.post(`/posts/${id}/save`);
+      const response = await client.post(`/posts/${id}/save`);
+      return response.data;
     },
 
     async addComment(postId, text) {
@@ -578,7 +524,8 @@ export const api = {
         post.comments.push(comment);
         return mockResponse({ comment });
       }
-      return client.post(`/posts/${postId}/comments`, { text });
+      const response = await client.post(`/posts/${postId}/comments`, { text });
+      return response.data;
     },
   },
 
@@ -587,10 +534,9 @@ export const api = {
   // --------------------------------------------------------------------------
   topics: {
     async getAll() {
-      if (CONFIG.USE_MOCKS) {
-        return mockResponse({ topics: MOCK_DATA.topics }, 200);
-      }
-      return client.get('/topics');
+      if (CONFIG.USE_MOCKS) return mockResponse({ topics: MOCK_DATA.topics });
+      const data = await client.get('/topics');
+      return response.data;
     },
 
     async getById(id) {
@@ -599,7 +545,8 @@ export const api = {
         if (!topic) throw new ApiError(404, 'Topic not found');
         return mockResponse({ topic });
       }
-      return client.get(`/topics/${id}`);
+      const data = await client.get(`/topics/${id}`);
+      return response.data;
     },
 
     async follow(id) {
@@ -608,7 +555,8 @@ export const api = {
         if (topic) topic.followers += 1;
         return mockResponse({ followed: true });
       }
-      return client.post(`/topics/${id}/follow`);
+      const data = await client.post(`/topics/${id}/follow`);
+      return response.data;
     },
 
     async unfollow(id) {
@@ -617,9 +565,11 @@ export const api = {
         if (topic) topic.followers -= 1;
         return mockResponse({ followed: false });
       }
-      return client.delete(`/topics/${id}/follow`);
+      const data = await client.delete(`/topics/${id}/follow`);
+      return response.data;
     },
   },
+
 
   // --------------------------------------------------------------------------
   // EVENTS
@@ -627,7 +577,7 @@ export const api = {
   events: {
     async getAll(params = {}) {
       if (CONFIG.USE_MOCKS) {
-        return mockResponse({ events: MOCK_DATA.events }, 200);
+        return mockResponse({ events: MOCK_DATA.events });
       }
       return client.get('/events', params);
     },
@@ -686,7 +636,7 @@ export const api = {
   reports: {
     async create({ type, targetId, reason }) {
       if (CONFIG.USE_MOCKS) {
-        return mockResponse({ success: true, reportId: `r_${Date.now()}` }, 350);
+        return mockResponse({ success: true, reportId: `r_${Date.now()}` });
       }
       return client.post('/reports', { type, targetId, reason });
     },
