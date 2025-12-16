@@ -3,6 +3,10 @@
  * =====================
  */
 
+// Tokens
+export const ACCESS_TOKEN = "access";
+export const REFRESH_TOKEN = "refresh";
+
 // Navigation Routes
 export const ROUTES = {
   AUTH: 'auth',
