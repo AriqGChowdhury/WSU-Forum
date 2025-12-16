@@ -166,9 +166,11 @@ class SearchViews(APIView):
             search = SearchService.get(request.data)
             people = UserSerializer(search["People"], many=True).data
             posts = PostSerializer(search["Posts"], many=True).data
+            subforums = SubforumSerializer(search["Subforums"], many=True).data
             return Response({
                 "People": people,
-                "Posts": posts
+                "Posts": posts,
+                "Subforums": subforums
             })
         return Response({"message": "error"})
     
@@ -212,13 +214,24 @@ class ProfileViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
-    def get(self, request):
-        get_profile = ProfileService(request.user)
+    def get(self, request, user_id=None):
+        saved = False
+        if user_id is None:
+            user = request.user
+            saved = True
+        else:
+            get_object_or_404(User, id=user_id)
+            
+        get_profile = ProfileService(user, saved)
         profile = get_profile.get_profile()
         return Response({
             "Posts": PostSerializer(profile[0], many=True).data, 
             "Comments": PostCommentSerializer(profile[1], many=True).data,
-            "Saved": SavedPostSerializer(profile[2], many=True).data
+            "Saved": SavedPostSerializer(profile[2], many=True).data,
+            "Following": FollowingSerializer(profile[3], many=True).data,
+            "Followers": FollowerSerializer(profile[4], many=True).data,
+            "Following Count": profile[3].count(),
+            "Followers Count": profile[4].count()
         })
     
     def delete(self, request):
@@ -227,6 +240,20 @@ class ProfileViews(APIView):
         if deleted:
             return Response({"Message": "Post Deleted"})
         return Response({"Message": "Post does not exist or cannot be deleted"})
+    
+class FollowViews(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request, user_id):
+        follow = FollowService(request.user, user_id)
+        followed = follow.follow()
+        if followed == "Error":
+            return Response({"Error": "Cannot follow yourself"})
+        if followed:
+            return Response({"Message": "Followed"}, status=status.HTTP_200_OK)
+        return Response({"Message": "Unfollowed"}, status=status.HTTP_200_OK)
+
 
 class SubforumViews(APIView):
     permission_classes = [IsAuthenticated]
@@ -572,9 +599,6 @@ class AdminSubforumApprovalViews(APIView):
                 subforum.status = 'approved'
                 subforum.save()
                 
-                # Notify creator
-                # NotificationService.notify_user_subforum_approved(subforum.creator, subforum)
-                
                 return Response(
                     {'message': 'Subforum approved successfully'},
                     status=status.HTTP_200_OK
@@ -583,9 +607,6 @@ class AdminSubforumApprovalViews(APIView):
             elif action == 'reject':
                 subforum.status = 'rejected'
                 subforum.save()
-                
-                # Notify creator with reason
-                # NotificationService.notify_user_subforum_rejected(subforum.creator, subforum, reason)
                 
                 return Response(
                     {'message': 'Subforum rejected'},

@@ -81,7 +81,8 @@ class SearchService:
     def search(self):
         people = self.__search_users()
         posts = self.__search_posts()
-        return {"People": people, "Posts": posts}
+        subforums = self.__search_subforums()
+        return {"People": people, "Posts": posts, "Subforums": subforums}
 
     
     #private
@@ -97,6 +98,9 @@ class SearchService:
             Q(body__icontains=self.__data) |
             Q(user__username__icontains=self.__data)
         )
+    
+    def __search_subforums(self):
+        return Subforum.objects.filter(name__icontains=self.__data)
 
 
 class ResetPassService:
@@ -227,18 +231,45 @@ class SaveService:
             return False
         return True
     
+class FollowService:
+    def __init__(self, user, user_id):
+        self.__follower = user
+        self.__following = User.objects.get(id=user_id)
+
+    def follow(self):
+        if self.__error_check():
+            return "Error"
+        return self.__follow()
+    
+    def __error_check(self):
+        if self.__follower == self.__following:
+            return True
+        return False
+        
+    def __follow(self):
+        follow, created = FollowPerson.objects.get_or_create(follower=self.__follower, following=self.__following)
+        if not created:
+            follow.delete()
+            return False
+        return True
+    
 class ProfileService:
-    def __init__(self, user):
+    def __init__(self, user, saved):
+        self.__saved = saved
         self.__user = user
 
     def get_profile(self):
         return self.__get_profile()
 
     def __get_profile(self):
+        saved_posts = None
         posts = Post.objects.filter(user=self.__user)
         commented_on = Comments.objects.filter(user=self.__user)
-        saved_posts = SavePost.objects.filter(user=self.__user)
-        return [posts, commented_on, saved_posts]
+        if self.__saved:
+            saved_posts = SavePost.objects.filter(user=self.__user)
+        following = FollowPerson.objects.filter(follower=self.__user)
+        follower = FollowPerson.objects.filter(following=self.__user)
+        return [posts, commented_on, saved_posts, following, follower]
     
     def delete(self, id):
         return self.__delete(id)

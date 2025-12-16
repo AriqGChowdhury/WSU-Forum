@@ -391,3 +391,25 @@ class ModeratorSerializer(serializers.ModelSerializer):
         if obj.assigned_by:
             return obj.assigned_by.username
         return None
+    
+class FollowingSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FollowPerson
+        fields = ["user", "created_at"]
+
+    def get_user(self, obj):
+        return {"id": obj.following.id, "username": obj.following.username}
+    
+class FollowerSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FollowPerson
+        fields = ["user", "created_at"]
+
+    def get_user(self, obj):
+        return {"id": obj.follower.id, "username": obj.follower.username} 
+
+    
