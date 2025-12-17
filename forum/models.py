@@ -163,6 +163,7 @@ class FollowPerson(models.Model):
 
 class Student(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=40, null=True, blank=True)
     major = models.CharField(max_length=75)
     classification = models.CharField(max_length=20)
     profile_picture = models.ImageField(blank=True)
@@ -170,6 +171,7 @@ class Student(models.Model):
 
 class Faculty(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=40, null=True, blank=True)
     department = models.CharField(max_length=100)
     profile_picture = models.ImageField(blank=True)
     bio = models.CharField(max_length=200, blank=True)
