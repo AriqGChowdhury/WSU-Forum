@@ -13,18 +13,20 @@ import {
   Edit, 
   Calendar, 
   BookOpen, 
-  Users, 
   FileText,
-  Settings,
-  Share2
+  Settings
 } from 'lucide-react';
 
 export function ProfileView() {
   const { user } = useAuth();
-  const { getUserPosts } = usePosts();
+  const { posts } = usePosts();
   const [tab, setTab] = useState('posts');
   
-  const userPosts = getUserPosts();
+  // Filter posts by current user - check both user field (username) and author.id
+  const userPosts = posts.filter(post => 
+    post.user === user?.username || 
+    post.author?.id === user?.id
+  );
 
   if (!user) return null;
 
@@ -44,12 +46,6 @@ export function ProfileView() {
                 </AvatarFallback>
               </Avatar>
             </div>
-            <div className="absolute top-4 right-4">
-              <Button variant="secondary" size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Profile
-              </Button>
-            </div>
           </div>
 
           {/* User Info */}
@@ -68,9 +64,6 @@ export function ProfileView() {
                   )}
                 </div>
               </div>
-              <Button variant="outline" size="icon">
-                <Share2 className="h-4 w-4" />
-              </Button>
             </div>
 
             {/* Bio */}
@@ -81,7 +74,7 @@ export function ProfileView() {
             {/* Stats */}
             <div className="flex gap-6 mt-4 pt-4 border-t">
               <div className="text-center">
-                <p className="text-xl font-bold">{user.stats?.posts || userPosts.length}</p>
+                <p className="text-xl font-bold">{userPosts.length}</p>
                 <p className="text-xs text-zinc-500">Posts</p>
               </div>
               <div className="text-center">

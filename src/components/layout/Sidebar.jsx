@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { 
   Home, 
-  Hash, 
   CalendarDays, 
   Bookmark, 
   User, 
   Settings, 
-  MessageCircle,
   ChevronLeft,
   ChevronRight,
   Shield,
@@ -27,11 +25,10 @@ import { ROUTES } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
-// Navigation items configuration
+// Navigation items - REMOVED Topics and Lounge
 const NAV_ITEMS = [
   { icon: Home, label: 'Feed', route: ROUTES.FEED },
   { icon: LayoutGrid, label: 'Sub-Forums', route: ROUTES.SUBFORUMS },
-  { icon: Hash, label: 'Topics', route: ROUTES.TOPICS },
   { icon: CalendarDays, label: 'Events', route: ROUTES.EVENTS, badgeKey: 'events' },
   { icon: Bookmark, label: 'Saved', route: ROUTES.SAVED },
 ];
@@ -39,19 +36,17 @@ const NAV_ITEMS = [
 const ACCOUNT_ITEMS = [
   { icon: User, label: 'Profile', route: ROUTES.PROFILE },
   { icon: Settings, label: 'Settings', route: ROUTES.SETTINGS },
-  { icon: MessageCircle, label: 'Lounge', route: ROUTES.LOUNGE },
 ];
 
 const ADMIN_ITEM = { icon: ShieldCheck, label: 'Admin', route: ROUTES.ADMIN };
 
 /**
- * Desktop Sidebar - Collapsible with icons/text toggle
+ * Desktop Sidebar - Collapsible
  */
 export function Sidebar({ route, setRoute, badges = {} }) {
   const { isAuthenticated, user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   
-  // Add admin item if user is admin
   const accountItems = user?.role === 'Admin' 
     ? [...ACCOUNT_ITEMS, ADMIN_ITEM] 
     : ACCOUNT_ITEMS;
@@ -65,7 +60,6 @@ export function Sidebar({ route, setRoute, badges = {} }) {
         collapsed ? 'w-[68px]' : 'w-64'
       )}
     >
-      {/* Navigation Items */}
       <div className="flex-1 p-2 space-y-1 overflow-hidden">
         {NAV_ITEMS.map((item) => (
           <NavItem
@@ -93,7 +87,6 @@ export function Sidebar({ route, setRoute, badges = {} }) {
         ))}
       </div>
 
-      {/* Collapse Toggle Button */}
       <div className="p-2 border-t">
         <Button
           variant="ghost"
@@ -115,7 +108,6 @@ export function Sidebar({ route, setRoute, badges = {} }) {
         </Button>
       </div>
 
-      {/* Footer - only show when expanded */}
       {!collapsed && (
         <div className="p-3 border-t text-xs text-zinc-400">
           <p>© 2025 WSU Forum</p>
@@ -131,12 +123,11 @@ export function Sidebar({ route, setRoute, badges = {} }) {
 }
 
 /**
- * Mobile Sidebar - Sheet/Drawer that slides in from left
+ * Mobile Sidebar
  */
 export function MobileSidebar({ open, onOpenChange, route, setRoute, badges = {} }) {
   const { isAuthenticated, user } = useAuth();
   
-  // Add admin item if user is admin
   const accountItems = user?.role === 'Admin' 
     ? [...ACCOUNT_ITEMS, ADMIN_ITEM] 
     : ACCOUNT_ITEMS;
@@ -198,9 +189,6 @@ export function MobileSidebar({ open, onOpenChange, route, setRoute, badges = {}
   );
 }
 
-/**
- * Desktop Nav Item - with tooltip when collapsed
- */
 function NavItem({ icon: Icon, label, active, onClick, badge, collapsed }) {
   const buttonContent = (
     <button
@@ -234,7 +222,6 @@ function NavItem({ icon: Icon, label, active, onClick, badge, collapsed }) {
     </button>
   );
 
-  // Wrap in tooltip when collapsed
   if (collapsed) {
     return (
       <Tooltip>
@@ -254,9 +241,6 @@ function NavItem({ icon: Icon, label, active, onClick, badge, collapsed }) {
   return buttonContent;
 }
 
-/**
- * Mobile Nav Item - always shows icon + text
- */
 function MobileNavItem({ icon: Icon, label, active, onClick, badge }) {
   return (
     <button

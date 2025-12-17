@@ -1,527 +1,521 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api } from '@/services/api';
-import { useAuth } from './AuthContext';
-
-// ============================================================================
-// MOCK DATA - Will display alongside real data
-// ============================================================================
-
-const MOCK_POSTS = [
-  {
-    id: 'mock_p1',
-    author: { 
-      id: 'mock_u_ali', 
-      name: 'Ali Z.', 
-      avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Ali',
-      role: 'Student'
-    },
-    subforumId: 'cs',
-    subforumName: 'Computer Science',
-    topicId: 't2',
-    topicName: 'CS & AI',
-    title: 'Best starter project for CNNs?',
-    body: 'Trying to build something simple that still teaches the core ideas. Any suggestions for a beginner-friendly project? I was thinking about image classification with MNIST or maybe something more practical.',
-    liked: false,
-    saved: true,
-    likes: 9,
-    comments: [
-      { 
-        id: 'mock_c1', 
-        author: { id: 'mock_u_jay', name: 'Jay M.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Jay', role: 'Student' },
-        text: 'MNIST or CIFAR-10 is perfect. Keep it small, track overfitting.',
-        createdAt: '1h ago'
-      },
-      { 
-        id: 'mock_c2', 
-        author: { id: 'mock_u_prof', name: 'Dr. Chen', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=DrChen', role: 'Faculty' },
-        text: 'Consider starting with transfer learning using a pre-trained model like ResNet. Much easier than training from scratch!',
-        createdAt: '45m ago'
-      },
-    ],
-    createdAt: '2h ago',
-    contentType: 'question',
-    isMock: true,
-  },
-  {
-    id: 'mock_p2',
-    author: { 
-      id: 'mock_u_robotics', 
-      name: 'WSU Robotics Club', 
-      avatar: 'https://api.dicebear.com/8.x/shapes/svg?seed=WSU',
-      role: 'Staff'
-    },
-    subforumId: 'clubs',
-    subforumName: 'Clubs & Organizations',
-    topicId: 't3',
-    topicName: 'Events',
-    title: '🤖 Tonight: Drivetrain Tear-Down Stream',
-    body: "We'll live stream at 7pm in Engineering 1500. Bring questions about brushless motors & PID tuning. Everyone welcome! Pizza and refreshments provided.",
-    liked: true,
-    saved: false,
-    likes: 31,
-    comments: [],
-    createdAt: '6h ago',
-    contentType: 'event',
-    eventDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    eventTime: '19:00',
-    eventPlace: 'Engineering 1500',
-    isMock: true,
-  },
-  {
-    id: 'mock_p3',
-    author: { 
-      id: 'mock_u_sarah', 
-      name: 'Sarah K.', 
-      avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Sarah',
-      role: 'Student'
-    },
-    subforumId: 'roommates',
-    subforumName: 'Roommate Finder',
-    topicId: 't4',
-    topicName: 'Housing',
-    title: 'Roommate needed for Winter semester',
-    body: 'Looking for a roommate to share a 2BR apartment near campus. $650/month including utilities. The apartment is on Anthony Wayne Dr, 5 min walk to campus. DM if interested!',
-    liked: false,
-    saved: false,
-    likes: 5,
-    comments: [
-      { 
-        id: 'mock_c3', 
-        author: { id: 'mock_u_mike', name: 'Mike T.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Mike', role: 'Student' },
-        text: 'Is this still available? I\'m a junior CS major looking for housing.',
-        createdAt: '3h ago'
-      },
-    ],
-    createdAt: '1d ago',
-    contentType: 'discussion',
-    isMock: true,
-  },
-  {
-    id: 'mock_p4',
-    author: { 
-      id: 'mock_u_drsmith', 
-      name: 'Dr. Smith', 
-      avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=DrSmith',
-      role: 'Faculty'
-    },
-    subforumId: 'announcements',
-    subforumName: 'Announcements',
-    topicId: 't1',
-    topicName: 'Announcements',
-    title: '📢 Final Exam Schedule Released',
-    body: 'The final exam schedule for Fall 2025 has been posted. Please check the registrar website for your specific times. Office hours will be extended during finals week - see the schedule in my syllabus.',
-    liked: true,
-    saved: true,
-    likes: 45,
-    comments: [
-      { 
-        id: 'mock_c4', 
-        author: { id: 'mock_u_student1', name: 'Emma L.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Emma', role: 'Student' },
-        text: 'Thanks for the heads up! Will there be a review session before the final?',
-        createdAt: '30m ago'
-      },
-    ],
-    createdAt: '4h ago',
-    contentType: 'announcement',
-    isMock: true,
-  },
-  {
-    id: 'mock_p5',
-    author: { 
-      id: 'mock_u_emma', 
-      name: 'Emma T.', 
-      avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=EmmaT',
-      role: 'Student'
-    },
-    subforumId: 'study-groups',
-    subforumName: 'Study Groups',
-    topicId: 't6',
-    topicName: 'Study Groups',
-    title: 'Study group for CSC 4500 Algorithms?',
-    body: 'Anyone want to form a study group for the Algorithms final? Planning to meet at the library this weekend. We can work through practice problems together.',
-    liked: false,
-    saved: false,
-    likes: 12,
-    comments: [
-      { 
-        id: 'mock_c5', 
-        author: { id: 'mock_u_alex', name: 'Alex P.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Alex', role: 'Student' },
-        text: "I'm in! DM me the details. I really need help with dynamic programming.",
-        createdAt: '2h ago'
-      },
-      { 
-        id: 'mock_c6', 
-        author: { id: 'mock_u_jen', name: 'Jennifer W.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Jennifer', role: 'Student' },
-        text: "Count me in too! Sunday afternoon works best for me.",
-        createdAt: '1h ago'
-      },
-    ],
-    createdAt: '5h ago',
-    contentType: 'question',
-    isMock: true,
-  },
-  {
-    id: 'mock_p6',
-    author: { 
-      id: 'mock_u_career', 
-      name: 'Career Services', 
-      avatar: 'https://api.dicebear.com/8.x/shapes/svg?seed=Career',
-      role: 'Staff'
-    },
-    subforumId: 'internships',
-    subforumName: 'Internships',
-    topicId: 't7',
-    topicName: 'Career',
-    title: '🎯 Summer 2026 Internship Fair - Register Now!',
-    body: 'Over 50 companies will be attending our annual internship fair on January 15th. Companies include Google, Microsoft, Ford, GM, and many local Detroit startups. Registration is required. Free professional headshots available!',
-    liked: true,
-    saved: true,
-    likes: 89,
-    comments: [],
-    createdAt: '1d ago',
-    contentType: 'event',
-    eventDate: '2026-01-15',
-    eventTime: '10:00',
-    eventPlace: 'Student Center Ballroom',
-    isMock: true,
-  },
-  {
-    id: 'mock_p7',
-    author: { 
-      id: 'mock_u_jason', 
-      name: 'Jason R.', 
-      avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Jason',
-      role: 'Student'
-    },
-    subforumId: 'marketplace',
-    subforumName: 'Buy/Sell/Trade',
-    topicId: 't5',
-    topicName: 'Marketplace',
-    title: '📚 Selling: Calculus textbook (Stewart 9th Ed)',
-    body: 'Barely used, no highlighting. $50 OBO. Can meet on campus. Also have the solutions manual available for extra $20.',
-    liked: false,
-    saved: false,
-    likes: 3,
-    comments: [],
-    createdAt: '2d ago',
-    contentType: 'discussion',
-    isMock: true,
-  },
-  {
-    id: 'mock_p8',
-    author: { 
-      id: 'mock_u_sports', 
-      name: 'WSU Athletics', 
-      avatar: 'https://api.dicebear.com/8.x/shapes/svg?seed=Athletics',
-      role: 'Staff'
-    },
-    subforumId: 'sports',
-    subforumName: 'Sports & Recreation',
-    topicId: 't8',
-    topicName: 'Sports',
-    title: '🏀 Warriors Basketball vs Michigan State - Friday!',
-    body: 'Come support your Warriors this Friday night at 7pm! First 500 students get free t-shirts. Student section opens at 6pm.',
-    liked: false,
-    saved: false,
-    likes: 67,
-    comments: [
-      { 
-        id: 'mock_c7', 
-        author: { id: 'mock_u_fan', name: 'Marcus J.', avatar: 'https://api.dicebear.com/8.x/avataaars/svg?seed=Marcus', role: 'Student' },
-        text: "Let's gooooo! Warriors all the way! 💚",
-        createdAt: '5h ago'
-      },
-    ],
-    createdAt: '8h ago',
-    contentType: 'event',
-    eventDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    eventTime: '19:00',
-    eventPlace: 'Athletics Center',
-    isMock: true,
-  },
-];
-
-// ============================================================================
-// CONTEXT
-// ============================================================================
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { api } from "@/services/api";
+import { useAuth } from "./AuthContext";
 
 const PostContext = createContext(null);
 
 // ============================================================================
-// PROVIDER
+// LOCAL STORAGE
 // ============================================================================
+
+const POSTS_KEY = "wsu_forum_posts_v1";
+const DELETED_KEY = "wsu_forum_deleted_post_ids_v1";
+
+function safeLoadJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function safeSaveJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    // ignore
+  }
+}
+
+function safeLoadLocalPosts() {
+  const parsed = safeLoadJson(POSTS_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function safeSaveLocalPosts(nextPosts) {
+  safeSaveJson(POSTS_KEY, nextPosts || []);
+}
+
+function loadDeletedIds() {
+  const parsed = safeLoadJson(DELETED_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function saveDeletedIds(ids) {
+  safeSaveJson(DELETED_KEY, ids || []);
+}
+
+function addDeletedId(id) {
+  if (!id) return;
+  const current = loadDeletedIds();
+  if (current.includes(id)) return;
+  saveDeletedIds([id, ...current]);
+}
+
+function removeDeletedId(id) {
+  if (!id) return;
+  const current = loadDeletedIds();
+  const next = current.filter((x) => x !== id);
+  saveDeletedIds(next);
+}
+
+function normalizePosts(input) {
+  if (!input) return [];
+  if (Array.isArray(input)) return input;
+  if (Array.isArray(input.posts)) return input.posts;
+  return [];
+}
+
+function filterOutDeleted(posts) {
+  const deletedIds = loadDeletedIds();
+  if (!deletedIds.length) return posts || [];
+  return (posts || []).filter((p) => !deletedIds.includes(p.id));
+}
 
 export function PostProvider({ children }) {
   const { user, isAuthenticated } = useAuth();
-  const [posts, setPosts] = useState([]);
+
+  const [posts, setPosts] = useState(() => {
+    const local = safeLoadLocalPosts();
+    return filterOutDeleted(local);
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [includeMockData, setIncludeMockData] = useState(true); // Toggle for mock data
 
-  // Fetch posts when user logs in
+  // keep localStorage in sync with posts
+  useEffect(() => {
+    safeSaveLocalPosts(posts);
+  }, [posts]);
+
+  // On auth change
   useEffect(() => {
     if (!isAuthenticated) {
       setPosts([]);
       return;
     }
+    loadPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
-    let cancelled = false;
+  const loadPosts = useCallback(async () => {
     setLoading(true);
-
-    api.posts.getAll()
-      .then(({ posts: realPosts }) => {
-        if (!cancelled) {
-          // Combine real posts with mock posts if enabled
-          const allPosts = includeMockData 
-            ? [...(realPosts || []), ...MOCK_POSTS]
-            : (realPosts || []);
-          
-          // Sort by createdAt (mock posts have relative times, so put real posts first)
-          setPosts(allPosts);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message);
-          // Still show mock data on error
-          if (includeMockData) {
-            setPosts(MOCK_POSTS);
-          }
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [isAuthenticated, includeMockData]);
-
-  // Create a new post
-  const createPost = useCallback(async (data) => {
     setError(null);
+
+    const localPosts = filterOutDeleted(safeLoadLocalPosts());
+
     try {
-      // Add to local state immediately for better UX
-      const newPost = {
-        id: `post_${Date.now()}`,
-        ...data,
-        liked: false,
-        saved: false,
-        likes: 0,
-        comments: [],
-        createdAt: 'Just now',
-      };
-      
-      setPosts((prev) => [newPost, ...prev]);
-      
-      // Try to save to backend
-      try {
-        const { post } = await api.posts.create(data);
-        // Update with server response if available
-        if (post) {
-          setPosts((prev) => prev.map(p => p.id === newPost.id ? { ...post, ...newPost } : p));
-        }
-      } catch (apiError) {
-        console.log('Post saved locally, backend sync pending');
+      const data = await api.posts.getAll();
+      const serverPostsRaw = normalizePosts(data);
+      const serverPosts = filterOutDeleted(serverPostsRaw);
+
+      // Prefer server if it has posts, otherwise fall back to local
+      if (serverPosts.length > 0) {
+        setPosts(serverPosts);
+        safeSaveLocalPosts(serverPosts);
+      } else {
+        setPosts(localPosts);
       }
-      
-      return { success: true, post: newPost };
     } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, []);
-
-  // Update a post
-  const updatePost = useCallback(async (id, data) => {
-    setError(null);
-    try {
-      // Optimistic update
-      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)));
-      
-      // Try backend update
-      try {
-        await api.posts.update(id, data);
-      } catch (apiError) {
-        console.log('Post update saved locally');
-      }
-      
-      return { success: true };
-    } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, []);
-
-  // Delete a post
-  const deletePost = useCallback(async (id) => {
-    setError(null);
-    try {
-      setPosts((prev) => prev.filter((p) => p.id !== id));
-      
-      try {
-        await api.posts.delete(id);
-      } catch (apiError) {
-        console.log('Post deleted locally');
-      }
-      
-      return { success: true };
-    } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, []);
-
-  // Toggle like (optimistic update)
-  const toggleLike = useCallback(async (id) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-          : p
-      )
-    );
-
-    try {
-      await api.posts.like(id);
-    } catch {
-      // Revert on error
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-            : p
-        )
-      );
-    }
-  }, []);
-
-  // Toggle save (optimistic update)
-  const toggleSave = useCallback(async (id) => {
-    setPosts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, saved: !p.saved } : p))
-    );
-
-    try {
-      await api.posts.save(id);
-    } catch {
-      // Revert on error
-      setPosts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, saved: !p.saved } : p))
-      );
-    }
-  }, []);
-
-  // Add comment to a post
-  const addComment = useCallback(async (postId, text) => {
-    setError(null);
-    try {
-      const comment = {
-        id: `comment_${Date.now()}`,
-        author: {
-          id: user?.id,
-          name: user?.name,
-          avatar: user?.avatar,
-          role: user?.role,
-        },
-        text,
-        createdAt: 'Just now',
-      };
-      
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId ? { ...p, comments: [...(p.comments || []), comment] } : p
-        )
-      );
-      
-      try {
-        await api.posts.addComment(postId, text);
-      } catch (apiError) {
-        console.log('Comment saved locally');
-      }
-      
-      return { success: true, comment };
-    } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, [user]);
-
-  // Get saved posts
-  const getSavedPosts = useCallback(() => {
-    return posts.filter((p) => p.saved);
-  }, [posts]);
-
-  // Get posts by topic
-  const getPostsByTopic = useCallback((topicId) => {
-    return posts.filter((p) => p.topicId === topicId);
-  }, [posts]);
-
-  // Get posts by subforum
-  const getPostsBySubforum = useCallback((subforumId) => {
-    return posts.filter((p) => p.subforumId === subforumId);
-  }, [posts]);
-
-  // Get user's own posts
-  const getUserPosts = useCallback(() => {
-    if (!user) return [];
-    return posts.filter((p) => p.author?.id === user.id);
-  }, [posts, user]);
-
-  // Refresh posts
-  const refreshPosts = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setLoading(true);
-    try {
-      const { posts: realPosts } = await api.posts.getAll();
-      const allPosts = includeMockData 
-        ? [...(realPosts || []), ...MOCK_POSTS]
-        : (realPosts || []);
-      setPosts(allPosts);
-    } catch (err) {
-      setError(err.message);
-      if (includeMockData) {
-        setPosts(MOCK_POSTS);
-      }
+      console.error("Failed to load posts:", err);
+      setPosts(localPosts);
+      setError(err?.message || "Failed to load posts");
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, includeMockData]);
-
-  // Toggle mock data
-  const toggleMockData = useCallback((show) => {
-    setIncludeMockData(show);
   }, []);
+
+  // --------------------------------------------------------------------------
+  // CREATE POST
+  // --------------------------------------------------------------------------
+  const createPost = useCallback(
+    async (data) => {
+      setError(null);
+
+      // optimistic local post
+      const tempId = `local_${Date.now()}`;
+      const optimisticPost = {
+        id: tempId,
+        title: data?.title || "",
+        body: data?.body || "",
+        contentType: data?.contentType || "discussion",
+
+        topicId: data?.topicId || null,
+        topicName: data?.topicName || null,
+        subforumId: data?.subforumId || null,
+        subforum: data?.subforum || null,
+
+        createdAt: data?.createdAt || "Just now",
+
+        eventDate: data?.eventDate || null,
+        eventTime: data?.eventTime || null,
+        eventPlace: data?.eventPlace || null,
+
+        liked: false,
+        saved: false,
+        likes: 0,
+        like_amt: 0,
+
+        comments: [],
+        comment_amt: 0,
+
+        author:
+          data?.author ||
+          user || {
+            id: "local_user",
+            name: "You",
+          },
+      };
+
+      // if this id was ever deleted, un-delete it
+      removeDeletedId(tempId);
+
+      setPosts((prev) => {
+        const next = [optimisticPost, ...(prev || [])];
+        return filterOutDeleted(next);
+      });
+
+      try {
+        await api.posts.create(data);
+
+        // If backend works, reload (will overwrite local with server list)
+        await loadPosts();
+        return { success: true };
+      } catch (err) {
+        // Keep local if backend fails
+        console.error("Create post failed, kept locally:", err);
+        setError(err?.message || "Failed to create post");
+        return { success: true, localOnly: true };
+      }
+    },
+    [loadPosts, user]
+  );
+
+  // --------------------------------------------------------------------------
+  // UPDATE POST
+  // --------------------------------------------------------------------------
+  const updatePost = useCallback(async (id, data) => {
+    setError(null);
+
+    setPosts((prev) => {
+      const next = (prev || []).map((p) => {
+        if (p.id !== id) return p;
+        return { ...p, ...data };
+      });
+      return filterOutDeleted(next);
+    });
+
+    try {
+      const isLocal = String(id || "").startsWith("local_");
+      if (isLocal) return { success: true, localOnly: true };
+
+      await api.posts.update(id, data);
+      return { success: true };
+    } catch (err) {
+      console.error("Update post failed on backend (kept locally):", err);
+      setError(err?.message || "Failed to update post");
+      return { success: true, localOnly: true };
+    }
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // DELETE POST (TOMBSTONE)
+  // --------------------------------------------------------------------------
+  const deletePost = useCallback(async (id) => {
+    setError(null);
+
+    // tombstone it so refresh never brings it back
+    addDeletedId(id);
+
+    // remove from UI immediately
+    setPosts((prev) => {
+      const next = (prev || []).filter((p) => p.id !== id);
+      return filterOutDeleted(next);
+    });
+
+    try {
+      const isLocal = String(id || "").startsWith("local_");
+      if (isLocal) return { success: true, localOnly: true };
+
+      await api.posts.delete(id);
+      return { success: true };
+    } catch (err) {
+      // Keep tombstone even if backend delete fails (so it stays gone in UI)
+      console.error("Delete failed on backend, kept deleted locally:", err);
+      setError(err?.message || "Failed to delete post");
+      return { success: true, localOnly: true };
+    }
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // TOGGLE LIKE
+  // --------------------------------------------------------------------------
+  const toggleLike = useCallback(
+    async (id) => {
+      const current = posts.find((p) => p.id === id);
+      const wasLiked = !!current?.liked;
+      const currentLikes = Number(current?.like_amt ?? current?.likes ?? 0);
+      const nextLikes = wasLiked ? currentLikes - 1 : currentLikes + 1;
+
+      setPosts((prev) => {
+        const next = (prev || []).map((p) => {
+          if (p.id !== id) return p;
+          return {
+            ...p,
+            liked: !wasLiked,
+            likes: nextLikes,
+            like_amt: nextLikes,
+          };
+        });
+        return filterOutDeleted(next);
+      });
+
+      try {
+        const isLocal = String(id || "").startsWith("local_");
+        if (isLocal) return;
+
+        const response = await api.posts.like(id);
+        if (response) {
+          const serverLiked = response.liked ?? !wasLiked;
+          const serverLikes = response.likes ?? nextLikes;
+
+          setPosts((prev) => {
+            const next = (prev || []).map((p) => {
+              if (p.id !== id) return p;
+              return {
+                ...p,
+                liked: serverLiked,
+                likes: serverLikes,
+                like_amt: serverLikes,
+              };
+            });
+            return filterOutDeleted(next);
+          });
+        }
+      } catch (err) {
+        console.error("Failed to toggle like:", err);
+
+        // revert
+        setPosts((prev) => {
+          const next = (prev || []).map((p) => {
+            if (p.id !== id) return p;
+            return {
+              ...p,
+              liked: wasLiked,
+              likes: currentLikes,
+              like_amt: currentLikes,
+            };
+          });
+          return filterOutDeleted(next);
+        });
+      }
+    },
+    [posts]
+  );
+
+  // --------------------------------------------------------------------------
+  // TOGGLE SAVE
+  // --------------------------------------------------------------------------
+  const toggleSave = useCallback(
+    async (id) => {
+      const current = posts.find((p) => p.id === id);
+      const wasSaved = !!current?.saved;
+
+      setPosts((prev) => {
+        const next = (prev || []).map((p) => {
+          if (p.id !== id) return p;
+          return { ...p, saved: !wasSaved };
+        });
+        return filterOutDeleted(next);
+      });
+
+      try {
+        const isLocal = String(id || "").startsWith("local_");
+        if (isLocal) return;
+
+        await api.posts.save(id);
+      } catch (err) {
+        console.error("Failed to toggle save:", err);
+
+        // revert
+        setPosts((prev) => {
+          const next = (prev || []).map((p) => {
+            if (p.id !== id) return p;
+            return { ...p, saved: wasSaved };
+          });
+          return filterOutDeleted(next);
+        });
+      }
+    },
+    [posts]
+  );
+
+  // --------------------------------------------------------------------------
+  // ADD COMMENT (LOCAL FIRST)
+  // --------------------------------------------------------------------------
+  const addComment = useCallback(
+    async (postId, text) => {
+      setError(null);
+
+      const newComment = {
+        id: `c_local_${Date.now()}`,
+        author: user || { id: "local_user", name: "You" },
+        text,
+        createdAt: "Just now",
+      };
+
+      setPosts((prev) => {
+        const next = (prev || []).map((p) => {
+          if (p.id !== postId) return p;
+
+          const prevComments = Array.isArray(p.comments) ? p.comments : [];
+          const nextComments = [...prevComments, newComment];
+
+          return {
+            ...p,
+            comments: nextComments,
+            comment_amt: Number(p.comment_amt || prevComments.length) + 1,
+          };
+        });
+
+        return filterOutDeleted(next);
+      });
+
+      try {
+        const isLocalPost = String(postId || "").startsWith("local_");
+        if (isLocalPost) return { success: true, comment: newComment, localOnly: true };
+
+        const response = await api.posts.addComment(postId, text);
+
+        if (response?.comment) {
+          setPosts((prev) => {
+            const next = (prev || []).map((p) => {
+              if (p.id !== postId) return p;
+
+              const prevComments = Array.isArray(p.comments) ? p.comments : [];
+              const nextComments = prevComments.map((c) => {
+                if (c.id === newComment.id) return response.comment;
+                return c;
+              });
+
+              return { ...p, comments: nextComments };
+            });
+
+            return filterOutDeleted(next);
+          });
+
+          return { success: true, comment: response.comment };
+        }
+
+        return { success: true, comment: newComment, localOnly: true };
+      } catch (err) {
+        console.error("Add comment failed, kept locally:", err);
+        setError(err?.message || "Failed to add comment");
+        return { success: true, comment: newComment, localOnly: true };
+      }
+    },
+    [user]
+  );
+
+  // --------------------------------------------------------------------------
+  // DELETE COMMENT (LOCAL ONLY — because api.js doesn't have deleteComment)
+  // --------------------------------------------------------------------------
+  const deleteComment = useCallback(async (postId, commentId) => {
+    setError(null);
+
+    setPosts((prev) => {
+      const next = (prev || []).map((p) => {
+        if (p.id !== postId) return p;
+
+        const prevComments = Array.isArray(p.comments) ? p.comments : [];
+        const nextComments = prevComments.filter((c) => c.id !== commentId);
+
+        return {
+          ...p,
+          comments: nextComments,
+          comment_amt: Math.max(0, Number(p.comment_amt || prevComments.length) - 1),
+        };
+      });
+
+      return filterOutDeleted(next);
+    });
+
+    return { success: true, localOnly: true };
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+  const getSavedPosts = useCallback(() => {
+    return (posts || []).filter((p) => !!p.saved);
+  }, [posts]);
+
+  const getPostsByTopic = useCallback(
+    (topicId) => {
+      return (posts || []).filter((p) => p.topicId === topicId);
+    },
+    [posts]
+  );
+
+  const getPostsBySubforum = useCallback(
+    (subforumId) => {
+      return (posts || []).filter((p) => {
+        return p.subforumId === subforumId || p.subforum?.id === subforumId;
+      });
+    },
+    [posts]
+  );
+
+  const getUserPosts = useCallback(() => {
+    if (!user) return [];
+    return (posts || []).filter((p) => {
+      return p.author?.id === user.id || p.user === user.username;
+    });
+  }, [posts, user]);
+
+  const refreshPosts = useCallback(async () => {
+    if (!isAuthenticated) return;
+    await loadPosts();
+  }, [isAuthenticated, loadPosts]);
 
   const value = {
     posts,
     loading,
     error,
+
     createPost,
     updatePost,
     deletePost,
+
     toggleLike,
     toggleSave,
+
     addComment,
+    deleteComment,
+
     getSavedPosts,
     getPostsByTopic,
     getPostsBySubforum,
     getUserPosts,
+
     refreshPosts,
-    includeMockData,
-    toggleMockData,
   };
 
   return <PostContext.Provider value={value}>{children}</PostContext.Provider>;
 }
 
-// ============================================================================
-// HOOK
-// ============================================================================
-
 export function usePosts() {
   const context = useContext(PostContext);
   if (!context) {
-    throw new Error('usePosts must be used within a PostProvider');
+    throw new Error("usePosts must be used within a PostProvider");
   }
   return context;
 }

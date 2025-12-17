@@ -1,10 +1,9 @@
-
 // ============================================================================
-// CONFIGURATION
+// CONFIGURATION (DO NOT TOUCH)
 // ============================================================================
 
 const CONFIG = {
-  BASE_URL: "http://127.0.0.1:8000", 
+  BASE_URL: "http://127.0.0.1:8000",
   TIMEOUT: 10000,
   USE_MOCKS: false,
 };
@@ -37,14 +36,80 @@ function safeJsonParse(text) {
 
 function pickErrorMessage(data) {
   if (!data) return "Request failed";
-  return (
-    data.message ||
-    data.Message ||
-    data.error ||
-    data.Error ||
-    (typeof data.detail === "string" ? data.detail : null) ||
-    "Request failed"
-  );
+
+  if (typeof data.detail === "string") {
+    return data.detail;
+  }
+
+  if (typeof data.message === "string") return data.message;
+  if (typeof data.Message === "string") return data.Message;
+  if (typeof data.error === "string") return data.error;
+  if (typeof data.Error === "string") return data.Error;
+
+  // DRF validation: { field: ["msg"], other: ["msg"] }
+  if (typeof data === "object") {
+    const keys = Object.keys(data);
+    if (keys.length > 0) {
+      const firstKey = keys[0];
+      const val = data[firstKey];
+
+      if (Array.isArray(val) && val.length > 0) {
+        rawToString(val[0]);
+        return `${firstKey}: ${rawToString(val[0])}`;
+      }
+      if (typeof val === "string") {
+        return `${firstKey}: ${val}`;
+      }
+      if (val && typeof val === "object") {
+        const innerKeys = Object.keys(val);
+        if (innerKeys.length > 0) {
+          const innerVal = val[innerKeys[0]];
+          if (Array.isArray(innerVal) && innerVal.length > 0) {
+            return `${firstKey}.${innerKeys[0]}: ${rawToString(innerVal[0])}`;
+          }
+          if (typeof innerVal === "string") {
+            return `${firstKey}.${innerKeys[0]}: ${innerVal}`;
+          }
+        }
+      }
+    }
+  }
+
+  return "Request failed";
+}
+
+function rawToString(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  try {
+    return JSON.stringify(v);
+  } catch (e) {
+    return String(v);
+  }
+}
+
+function saveTokensFromResponse(response) {
+  if (!response) return;
+
+  const access =
+    response.accessToken ||
+    response.access_token ||
+    response.access ||
+    response.token ||
+    null;
+
+  const refresh =
+    response.refreshToken ||
+    response.refresh_token ||
+    response.refresh ||
+    null;
+
+  if (access) {
+    localStorage.setItem("accessToken", access);
+  }
+  if (refresh) {
+    localStorage.setItem("refreshToken", refresh);
+  }
 }
 
 // ============================================================================
@@ -64,7 +129,6 @@ class ApiClient {
       ...(options.headers || {}),
     };
 
-    // Add auth token if available
     const token = localStorage.getItem("accessToken");
     if (token) {
       headers.Authorization = `Bearer ${token}`;
@@ -86,7 +150,6 @@ class ApiClient {
 
       const contentType = response.headers.get("content-type") || "";
 
-      
       if (!contentType.includes("application/json")) {
         if (contentType.includes("text/html")) {
           const htmlText = await response.text();
@@ -126,12 +189,15 @@ class ApiClient {
         });
       }
 
-      // Parse JSON
       const text = await response.text();
       const data = safeJsonParse(text);
 
       if (!response.ok) {
-        throw new ApiError(response.status, pickErrorMessage(data), { url, data });
+        throw new ApiError(response.status, pickErrorMessage(data), {
+          url,
+          data,
+          status: response.status,
+        });
       }
 
       return data;
@@ -205,11 +271,45 @@ const MOCK_DATA = {
   events: [],
 };
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const mockResponse = async (data, delayMs = 200) => {
+  await delay(delayMs);
+  return JSON.parse(JSON.stringify(data));
+};
+
 // ============================================================================
 // API SERVICE
 // ============================================================================
 
 const client = new ApiClient(CONFIG.BASE_URL);
+
+async function tryGet(endpoints, params = {}) {
+  let lastErr = null;
+
+  for (let i = 0; i < endpoints.length; i++) {
+    try {
+      return await client.get(endpoints[i], params);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr;
+}
+
+async function tryPatch(endpoints, body) {
+  let lastErr = null;
+
+  for (let i = 0; i < endpoints.length; i++) {
+    try {
+      return await client.patch(endpoints[i], body);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr;
+}
 
 export const api = {
   // --------------------------------------------------------------------------
@@ -222,24 +322,21 @@ export const api = {
         return { success: true, user: MOCK_DATA.user, token: "mock_token_123" };
       }
 
-      // Your backend expects username + password
       const response = await client.post("/login", {
         username: email,
         password: password,
       });
 
-      // store tokens if backend returns them
-      if (response && response.accessToken) {
-        localStorage.setItem("accessToken", response.accessToken);
-      }
-      if (response && response.refreshToken) {
-        localStorage.setItem("refreshToken", response.refreshToken);
-      }
+      saveTokensFromResponse(response);
 
       return {
         success: response?.success ?? true,
         user: response?.user ?? response,
-        token: response?.accessToken,
+        token:
+          response?.accessToken ||
+          response?.access ||
+          response?.token ||
+          localStorage.getItem("accessToken"),
         message: response?.message,
       };
     },
@@ -253,7 +350,6 @@ export const api = {
         };
       }
 
-      // Match your Django serializer fields
       const requestData = {
         username: data.username || (data.email ? data.email.split("@")[0] : ""),
         email: data.email,
@@ -266,8 +362,8 @@ export const api = {
       };
 
       const response = await client.post("/register", requestData);
+      saveTokensFromResponse(response);
 
-      // Usually you DO NOT get JWT until email verified (depends on your backend)
       return {
         success: true,
         user: response?.user ?? response,
@@ -282,7 +378,6 @@ export const api = {
 
       const response = await client.get(`/activate/${uidb64}/${token}`);
 
-      // Your backend might return {message:"success"} or similar
       const ok =
         response?.message === "success" ||
         response?.success === true ||
@@ -299,7 +394,6 @@ export const api = {
         return { success: true, message: "Reset email sent" };
       }
 
-      // YOUR urls.py shows: path('reset', views.RequestResetView.as_view(), name='reset')
       const response = await client.post("/reset", { email });
 
       return {
@@ -313,8 +407,6 @@ export const api = {
         return { success: true, message: "Password reset successfully" };
       }
 
-     
-      // Common pattern: /reset/<uidb64>/<token>
       const response = await client.post(`/reset/${uidb64}/${token}`, {
         password,
         pass2: pass2 || password,
@@ -373,7 +465,7 @@ export const api = {
         if (!post) throw new ApiError(404, "Post not found");
         return { post };
       }
-      const response = await client.get(`/${postId}`);
+      const response = await client.get(`/posts/${postId}`);
       return { post: response };
     },
 
@@ -396,6 +488,27 @@ export const api = {
       return { post: response };
     },
 
+    async update(postId, data) {
+      if (CONFIG.USE_MOCKS) {
+        const post = MOCK_DATA.posts.find((p) => p.id === postId);
+        if (post) Object.assign(post, data);
+        return { post };
+      }
+      const response = await client.patch(`/posts/${postId}`, data);
+      return { post: response };
+    },
+
+    async delete(postId) {
+      if (CONFIG.USE_MOCKS) {
+        const index = MOCK_DATA.posts.findIndex((p) => p.id === postId);
+        if (index !== -1) MOCK_DATA.posts.splice(index, 1);
+        return { success: true };
+      }
+
+      await client.delete(`/posts/${postId}`);
+      return { success: true };
+    },
+
     async like(postId) {
       if (CONFIG.USE_MOCKS) {
         const post = MOCK_DATA.posts.find((p) => p.id === postId);
@@ -403,9 +516,10 @@ export const api = {
           post.liked = !post.liked;
           post.likes += post.liked ? 1 : -1;
         }
-        return { liked: post?.liked, likes: post?.likes };
+        return mockResponse({ liked: post?.liked, likes: post?.likes });
       }
-      return client.post(`/${postId}/likes`, {});
+
+      return client.post(`/posts/${postId}/like`, {});
     },
 
     async save(postId) {
@@ -414,7 +528,7 @@ export const api = {
         if (post) post.saved = !post.saved;
         return { saved: post?.saved };
       }
-      return client.post(`/${postId}/save`, {});
+      return client.post(`/posts/${postId}/save`, {});
     },
 
     async addComment(postId, text) {
@@ -430,19 +544,128 @@ export const api = {
         post.comments.push(comment);
         return { comment };
       }
-      const response = await client.post(`/${postId}/comments`, { text });
-      return { comment: response };
+
+      const response = await client.post(`/posts/${postId}/comments`, { body: text });
+      return { comment: response?.comment ?? response };
     },
 
-    async delete(postId) {
+    async search(query) {
       if (CONFIG.USE_MOCKS) {
-        const index = MOCK_DATA.posts.findIndex((p) => p.id === postId);
-        if (index !== -1) MOCK_DATA.posts.splice(index, 1);
-        return { success: true };
+        return mockResponse({ People: [], Posts: [], Subforums: [] }, 250);
       }
 
-      await client.delete(`/posts/${postId}`);
-      return { success: true };
+      try {
+        const response = await client.post("/search", { query });
+        return response;
+      } catch (e) {
+        console.error("Search failed:", e?.message, e?.details?.data || e);
+        return { People: [], Posts: [], Subforums: [] };
+      }
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // TOPICS
+  // --------------------------------------------------------------------------
+  topics: {
+    async getAll(params = {}) {
+      if (CONFIG.USE_MOCKS) {
+        return { topics: MOCK_DATA.topics };
+      }
+      try {
+        const response = await client.get("/topics", params);
+        return { topics: response?.topics ?? response ?? [] };
+      } catch (e) {
+        console.error("Topics fetch failed:", e?.message, e?.details?.data || e);
+        return { topics: [] };
+      }
+    },
+
+    async follow(topicId) {
+      if (CONFIG.USE_MOCKS) {
+        return { success: true };
+      }
+      try {
+        return await client.post(`/topics/${topicId}/follow`, {});
+      } catch (e) {
+        console.error("Follow topic failed:", e?.message, e?.details?.data || e);
+        return { success: false };
+      }
+    },
+
+    async unfollow(topicId) {
+      if (CONFIG.USE_MOCKS) {
+        return { success: true };
+      }
+      try {
+        return await client.delete(`/topics/${topicId}/follow`);
+      } catch (e) {
+        console.error("Unfollow topic failed:", e?.message, e?.details?.data || e);
+        return { success: false };
+      }
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // EVENTS
+  // --------------------------------------------------------------------------
+  events: {
+    async getAll(params = {}) {
+      if (CONFIG.USE_MOCKS) {
+        return { events: MOCK_DATA.events };
+      }
+      try {
+        const response = await client.get("/events", params);
+        return { events: response?.events ?? response ?? [] };
+      } catch (e) {
+        console.error("Events fetch failed:", e?.message, e?.details?.data || e);
+        return { events: [] };
+      }
+    },
+
+    async getById(eventId) {
+      if (CONFIG.USE_MOCKS) {
+        const event = MOCK_DATA.events.find((e) => e.id === eventId);
+        return { event };
+      }
+      try {
+        const response = await client.get(`/events/${eventId}`);
+        return { event: response };
+      } catch (e) {
+        console.error("Event fetch failed:", e?.message, e?.details?.data || e);
+        return { event: null };
+      }
+    },
+
+    async create(data) {
+      if (CONFIG.USE_MOCKS) {
+        const newEvent = {
+          id: `e_${Date.now()}`,
+          ...data,
+          attendees: 0,
+        };
+        MOCK_DATA.events.push(newEvent);
+        return { event: newEvent };
+      }
+      try {
+        const response = await client.post("/events", data);
+        return { event: response };
+      } catch (e) {
+        console.error("Event create failed:", e?.message, e?.details?.data || e);
+        throw e;
+      }
+    },
+
+    async rsvp(eventId) {
+      if (CONFIG.USE_MOCKS) {
+        return { success: true };
+      }
+      try {
+        return await client.post(`/events/${eventId}/rsvp`, {});
+      } catch (e) {
+        console.error("RSVP failed:", e?.message, e?.details?.data || e);
+        return { success: false };
+      }
     },
   },
 
@@ -456,9 +679,10 @@ export const api = {
         return { settings: saved ? JSON.parse(saved) : {} };
       }
 
+      // try no-slash first (matches your urls.py), then slash
       try {
-        const response = await client.get("/settings");
-        return { settings: response?.user ?? response ?? {} };
+        const response = await tryGet(["/settings", "/settings/"]);
+        return { settings: response?.settings ?? response?.user ?? response ?? {} };
       } catch (e) {
         const saved = localStorage.getItem("wsu_forum_settings");
         return { settings: saved ? JSON.parse(saved) : {} };
@@ -471,9 +695,10 @@ export const api = {
         return { success: true, settings };
       }
 
+      // try no-slash first (matches your urls.py), then slash
       try {
-        const response = await client.patch("/settings", settings);
-        return { success: true, settings: response };
+        const response = await tryPatch(["/settings", "/settings/"], settings);
+        return { success: true, settings: response?.settings ?? response };
       } catch (e) {
         localStorage.setItem("wsu_forum_settings", JSON.stringify(settings));
         return { success: true, settings };
@@ -482,37 +707,21 @@ export const api = {
   },
 
   // --------------------------------------------------------------------------
-  // SEARCH
-  // --------------------------------------------------------------------------
-  search: {
-    async query(searchText) {
-      if (CONFIG.USE_MOCKS) {
-        return { users: [], posts: [], subforums: [] };
-      }
-
-      try {
-        const response = await client.post("/search", { searchText });
-        return {
-          users: response?.People || [],
-          posts: response?.Posts || [],
-          subforums: response?.Subforums || [],
-        };
-      } catch (e) {
-        return { users: [], posts: [], subforums: [] };
-      }
-    },
-  },
-
-  // --------------------------------------------------------------------------
   // USER PROFILE
   // --------------------------------------------------------------------------
   users: {
-    async getProfile() {
+    async getProfile(userId = null) {
       if (CONFIG.USE_MOCKS) {
         return { user: MOCK_DATA.user };
       }
-      const response = await client.get("/profile");
-      return { user: response?.user ?? response };
+      try {
+        const endpoint = userId ? `/users/${userId}` : "/profile";
+        const response = await client.get(endpoint);
+        return { user: response?.user ?? response };
+      } catch (e) {
+        console.error("Profile fetch failed:", e?.message, e?.details?.data || e);
+        return { user: null };
+      }
     },
 
     async updateProfile(data) {
@@ -520,8 +729,18 @@ export const api = {
         Object.assign(MOCK_DATA.user, data);
         return { user: MOCK_DATA.user };
       }
-      const response = await client.patch("/settings", data);
-      return { user: response };
+
+      // Your backend uses "settings" and "profile" without slash in urls.py,
+      // so try no-slash first, then slash as fallback.
+      try {
+        const r1 = await tryPatch(["/settings", "/settings/"], data);
+        return { user: r1?.user ?? r1 };
+      } catch (e1) {
+        console.error("Profile update failed on settings:", e1?.message, e1?.details?.data || e1);
+
+        const r2 = await tryPatch(["/profile", "/profile/"], data);
+        return { user: r2?.user ?? r2 };
+      }
     },
 
     async getSavedPosts() {
@@ -529,13 +748,17 @@ export const api = {
         const saved = MOCK_DATA.posts.filter((p) => p.saved);
         return { posts: saved };
       }
-      const response = await client.get("/profile");
-      return { posts: response?.Saved || [] };
+      try {
+        const response = await client.get("/profile");
+        return { posts: response?.Saved || [] };
+      } catch (e) {
+        return { posts: [] };
+      }
     },
   },
 
   // --------------------------------------------------------------------------
-  // SUBFORUMS 
+  // SUBFORUMS
   // --------------------------------------------------------------------------
   subforums: {
     async getAll(params = {}) {
@@ -587,18 +810,38 @@ export const api = {
         const response = await client.get("/notifications");
         return response?.notifications ? response : { notifications: response || [] };
       } catch (e) {
+        console.error("Notifications fetch failed:", e?.message, e?.details?.data || e);
         return { notifications: [] };
       }
     },
 
     async markAsRead(notificationId) {
       if (CONFIG.USE_MOCKS) return { success: true };
-      return client.post(`/notifications/${notificationId}/read`, {});
+      try {
+        return client.post(`/notifications/${notificationId}/read`, {});
+      } catch (e) {
+        console.error("Mark as read failed:", e?.message, e?.details?.data || e);
+        return { success: false };
+      }
     },
 
     async markAllAsRead() {
       if (CONFIG.USE_MOCKS) return { success: true };
-      return client.post("/notifications/read-all", {});
+      try {
+        return client.post("/notifications/read-all", {});
+      } catch (e) {
+        console.error("Mark all as read failed:", e?.message, e?.details?.data || e);
+        return { success: false };
+      }
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SEARCH (alias for backwards compatibility)
+  // --------------------------------------------------------------------------
+  search: {
+    async query(searchText) {
+      return api.posts.search(searchText);
     },
   },
 };

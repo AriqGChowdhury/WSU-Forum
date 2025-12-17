@@ -3,38 +3,83 @@ import { api } from "@/services/api";
 
 const AuthContext = createContext(null);
 
+const USER_CACHE_KEY = "wsu_forum_user_cache";
+
+// Helper functions - NO localStorage usage (violates artifact rules)
+// We'll use React state only and sync with backend
+function loadCachedUser() {
+  try {
+    const raw = sessionStorage.getItem(USER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedUser(user) {
+  try {
+    if (!user) {
+      sessionStorage.removeItem(USER_CACHE_KEY);
+      return;
+    }
+    sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+  } catch {
+    // Silently fail
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => loadCachedUser());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const setUserAndCache = useCallback((nextUser) => {
+    setUser(nextUser);
+    saveCachedUser(nextUser);
+  }, []);
+
+  const mergeUserAndCache = useCallback((incoming) => {
+    setUser((prev) => {
+      const merged = { ...(prev || {}), ...(incoming || {}) };
+      saveCachedUser(merged);
+      return merged;
+    });
+  }, []);
+
   // Check session on mount
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    const token = sessionStorage.getItem("accessToken") || localStorage.getItem("accessToken");
 
     if (!token) {
+      setUserAndCache(null);
       setLoading(false);
       return;
     }
 
     api.auth
       .getMe()
-      .then(({ user }) => {
-        if (user) {
-          setUser(user);
+      .then(({ user: serverUser }) => {
+        if (serverUser) {
+          mergeUserAndCache(serverUser);
         } else {
+          sessionStorage.removeItem("accessToken");
+          sessionStorage.removeItem("refreshToken");
           localStorage.removeItem("accessToken");
           localStorage.removeItem("refreshToken");
+          setUserAndCache(null);
         }
       })
       .catch(() => {
+        sessionStorage.removeItem("accessToken");
+        sessionStorage.removeItem("refreshToken");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        setUserAndCache(null);
       })
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }, [mergeUserAndCache, setUserAndCache]);
 
   const signIn = useCallback(async (email, password) => {
     setLoading(true);
@@ -44,7 +89,7 @@ export function AuthProvider({ children }) {
       const result = await api.auth.signIn(email, password);
 
       if (result.success && result.user) {
-        setUser(result.user);
+        setUserAndCache(result.user);
         return { success: true };
       }
 
@@ -56,7 +101,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setUserAndCache]);
 
   const signUp = useCallback(async (data) => {
     setLoading(true);
@@ -65,7 +110,6 @@ export function AuthProvider({ children }) {
     try {
       const result = await api.auth.signUp(data);
 
-      // do NOT set user until email verified
       return {
         success: true,
         message: result.message || "Please check your email to verify your account",
@@ -87,14 +131,15 @@ export function AuthProvider({ children }) {
     } catch {
       // ignore
     } finally {
+      sessionStorage.removeItem("accessToken");
+      sessionStorage.removeItem("refreshToken");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
-      setUser(null);
+      setUserAndCache(null);
       setLoading(false);
     }
-  }, []);
+  }, [setUserAndCache]);
 
-  // match api.auth.verifyEmail(uidb64, token)
   const verifyEmail = useCallback(async (uidb64, token) => {
     setLoading(true);
     setError(null);
@@ -111,9 +156,26 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const updateUser = useCallback((updates) => {
-    setUser((prev) => (prev ? { ...prev, ...updates } : null));
-  }, []);
+  // ✅ FIX: Update user AND sync with backend
+  const updateUser = useCallback(async (updates) => {
+    // Optimistic update
+    setUser((prev) => {
+      const next = prev ? { ...prev, ...updates } : null;
+      saveCachedUser(next);
+      return next;
+    });
+
+    // Sync with backend
+    try {
+      const { user: updatedUser } = await api.users.updateProfile(updates);
+      if (updatedUser) {
+        setUserAndCache(updatedUser);
+      }
+    } catch (error) {
+      console.error("Failed to sync profile update:", error);
+      // Keep local changes even if backend fails
+    }
+  }, [setUserAndCache]);
 
   const clearError = useCallback(() => setError(null), []);
 
