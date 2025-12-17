@@ -1,0 +1,17 @@
+# macOS junk
+.DS_Store
+
+# zip files
+*.zip
+
+# node
+node_modules
+dist
+build
+.vite
+.env
+.env.*
+appsettings.json
+wsuforum.db
+bin/
+obj/
