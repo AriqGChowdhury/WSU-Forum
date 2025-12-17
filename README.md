@@ -52,7 +52,7 @@ backend/
 │   ├── settings.py            #Django settings
 │   ├── urls.py                #Defines project URL routes
 │   └── wsgi.py                #Production entry point
-└──manage.py                   #Entry script
+└── manage.py                   #Entry script
 ```
 
 ## 🛠️ Getting Front-end Started
