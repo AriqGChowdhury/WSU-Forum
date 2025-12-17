@@ -19,10 +19,9 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 # Create your views here.
 
 
-# Password restrictions
+#User Registration
 class UserRegistrationViews(APIView):
     permission_classes = [AllowAny]
-
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -36,22 +35,25 @@ class UserRegistrationViews(APIView):
 class UserLoginViews(APIView):
     permission_classes = [AllowAny]
 
+    #Returns user's username
     def get(self, request):
         return Response({
             'username': request.user.username
     })
 
+    #Login function
     def post(self, request):
-        login_service = LoginService(username = request.data['username'], password = request.data['password'])
+        login_service = LoginService(user = request.data['username'], password = request.data['password'])
         user = login_service.login_user()
         if user is None or user.is_active == False:
             raise AuthenticationFailed('Invalid')
         refresh = RefreshToken.for_user(user)
 
+        #Returns access and refresh token used for security (JWT Authentication)
         return Response(
             {
                 'message': 'success',
-                'access': str(refresh.access_token),
+                'access': str(refresh.access_token), 
                 'refresh': str(refresh)
             }
         )
@@ -77,59 +79,66 @@ class DeleteAccountViews(APIView):
     def delete(self, request):
         delete_service = DeleteService(request.user)
         deleteAccount = delete_service.delete_user()
-        if not deleteAccount:
+        if not deleteAccount: #If user isnt found
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'message': 'Account has been deleted.'}, status=status.HTTP_200_OK)
     
-#Activate Account
+#Activation for newly registered account
 class ActivateAccount(APIView):
     permission_classes = [AllowAny]
     def get(self, request, uidb64, token):
+        #Sends email notification
         activate = EmailVerificationNotif.activate(token=token, uidb64=uidb64)
         if activate:
             return Response({"message": "success"}, status=status.HTTP_200_OK)
         return Response({"Error": "Account not activated"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+#Makes subforum public, if it's approved by admin
 class ActivateSubforum(APIView):
     permission_classes = [AllowAny]
     def get(self, request, uidb64, token):
+        #Sends Email to admin
         activate = SubforumPendingNotif.activate_subforum(token=token, uidb64=uidb64)
         if activate:
             return Response({"Message": "Success"}, status=status.HTTP_200_OK)
         return Response({"Error": "Subforum not activated"}, status=status.HTTP_400_BAD_REQUEST)
     
-#View all posts (tied to homepage for now) will update when subspace code is created   
+#View all posts 
 class AllPostsViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-
+    #Post on main homepage
     def post(self, request):
-        serializer = PostSerializer(data=request.data)
+        serializer = PostSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             serializer.save(user=request.user)
-            return Response({"message" : "post created"}, status=status.HTTP_201_CREATED)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
+    #Get all posts that arent posted in a subforum
     def get(self, request):
         all_posts = Post.objects.filter(subforum__isnull=True)
-        serializer = PostSerializer(all_posts, many=True)
+        serializer = PostSerializer(all_posts, many=True, context={"request": request})
         return Response(serializer.data)
 
+#Like a post
 class PostLikeView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-
+    #Likes and unlikes
     def post(self, request, post_id):
         like_post = LikeService(request.user, post_id)
         created = like_post.like_post()
         if created:
             return Response({"Message": "Liked post"}, status=status.HTTP_200_OK)
         return Response({"Message": "Unliked post"}, status=status.HTTP_200_OK)
-    
+
+#Comment on a post
 class PostCommentView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    #Post a comment 
     def post(self, request, post_id):
         serializer = CommentSerializer(data=request.data)
         if serializer.is_valid():
@@ -137,6 +146,7 @@ class PostCommentView(APIView):
             return Response({"Message": "Commented on post"}, status=status.HTTP_200_OK)
         return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
+    #Delete comment
     def delete(self, request, post_id):
         delete_comment = CommentService(request.user, post_id, request.data['id'])
         deleted = delete_comment.delete()
@@ -173,12 +183,15 @@ class SearchViews(APIView):
                 "Subforums": subforums
             })
         return Response({"message": "error"})
-    
+
+#Settings
 class SettingsViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    #Update settings, such as bio, profile pic, major, department, class
     def patch(self, request):
+        
         update_service = SettingsService(request.user)
         role = update_service.get_role_for_update()
         model = update_service.update_profile()
@@ -191,17 +204,18 @@ class SettingsViews(APIView):
             return Response({"message": "user has been updated"}, status=status.HTTP_200_OK)
         return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-
+    #Get current settings info
     def get(self, request):
         settings_service = SettingsService(request.user)
         info = settings_service.get_profile()
         return Response({"user": info})
     
-
+#Save post
 class SavePostViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    #Saves or unsaves post
     def post(self, request, post_id):
         save_post = SaveService(request.user, post_id)
         created = save_post.save()
@@ -209,11 +223,12 @@ class SavePostViews(APIView):
             return Response({"Message": "Saved post"}, status=status.HTTP_200_OK)
         return Response({"Message": "Unsaved post"}, status=status.HTTP_200_OK)
 
-
+#View your profile or someone elses
 class ProfileViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
+    #If a user id is passed, then the user is viewing someone elses profile
     def get(self, request, user_id=None):
         saved = False
         if user_id is None:
@@ -221,26 +236,36 @@ class ProfileViews(APIView):
             saved = True
         else:
             get_object_or_404(User, id=user_id)
-            
+
         get_profile = ProfileService(user, saved)
         profile = get_profile.get_profile()
+
+        #Saved posts are only shown if the user is viewing their own profile
+        saved_info = None 
+        if saved:
+            saved_info = SavedPostSerializer(profile[2], many=True).data
+
         return Response({
             "Posts": PostSerializer(profile[0], many=True).data, 
             "Comments": PostCommentSerializer(profile[1], many=True).data,
-            "Saved": SavedPostSerializer(profile[2], many=True).data,
+            "Saved": saved_info,
             "Following": FollowingSerializer(profile[3], many=True).data,
             "Followers": FollowerSerializer(profile[4], many=True).data,
             "Following Count": profile[3].count(),
             "Followers Count": profile[4].count()
         })
     
-    def delete(self, request):
-        delete_post_on_profile = ProfileService(request.user)
-        deleted = delete_post_on_profile.delete(request.data['id'])
+class DeletePostViews(APIView):
+    #Delete posts
+    def delete(self, request, post_id):
+        print(request.data)
+        delete_post_on_profile = DeletePostService(request.user, id=post_id)
+        deleted = delete_post_on_profile.delete()
         if deleted:
             return Response({"Message": "Post Deleted"})
         return Response({"Message": "Post does not exist or cannot be deleted"})
     
+#Follow/unfollow a person
 class FollowViews(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -248,7 +273,7 @@ class FollowViews(APIView):
     def post(self, request, user_id):
         follow = FollowService(request.user, user_id)
         followed = follow.follow()
-        if followed == "Error":
+        if followed == "Error": #Only returns error if the user is trying to follow themselves
             return Response({"Error": "Cannot follow yourself"})
         if followed:
             return Response({"Message": "Followed"}, status=status.HTTP_200_OK)
