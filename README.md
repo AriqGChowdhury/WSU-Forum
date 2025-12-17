@@ -167,10 +167,37 @@ python manage.py runserver
 - Both the frontend and backend must be running at the same time to use the application.
 - If you want to use only the backend, you can use tools like Postman and send requests to the endpoints defined in `forum/urls.py`.
 
+## Authors
+- Ariq Chowdhury - Backend
+- Eman Jibril - Backend
+- Alghada Badani - SCRUM Leader/Backend
+- Jean Dilloway - Frontend
+- Sanjeda Khan - Frontend
+
 
 ## 📝 License
 
-MIT
+MIT License
+
+Copyright (c) 2025 Ariq Chowdhury
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## 🤝 Contributing
 
