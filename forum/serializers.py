@@ -139,7 +139,7 @@ class SubforumReportSerializer(serializers.ModelSerializer):
         )
 
 
-
+#User registration serializer
 class UserRegistrationSerializer(serializers.ModelSerializer):
     pass2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
     email = serializers.CharField()
@@ -150,11 +150,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'pass2', 'role', 'major', 'classification', 'department']
+        #Required fields
+        fields = ['username', 'email', 'password', 'pass2', 'role', 'major', 'classification', 'department', "name"]
         extra_kwargs = {
             'password': {'write_only': True},
         }
 
+    #Validation
     def validate(self, attrs):
         email_validation = attrs['email'].split("@")
         if email_validation[1] != "wayne.edu":
@@ -167,14 +169,48 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if attrs['role'].lower() == "faculty":
             if attrs['department'] == "":
                 raise serializers.ValidationError({"detail": "Department cannot be null"})
+        if attrs['name']:
+            parts = attrs['name'].strip().split()
+            attrs['first_name'] = parts[0]
+            attrs['last_name'] = " ".join(parts[1:]) if len(parts) > 1 else ""
+        # if User.objects.filter(email=attrs['email']).exists():
+        #     raise serializers.ValidationError({"Account already in use": "cannot make more than one account"})
         return attrs
     
-    
-class PostSerializer(serializers.ModelSerializer):
-    user = serializers.SerializerMethodField()
+class AuthorSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="username")
     profile_picture = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "name", "username", "role", "profile_picture"]
+
+    def get_profile_picture(self, obj):
+        student = Student.objects.filter(user=obj).first()
+        if student and student.profile_picture:
+            return student.profile_picture.url
+        faculty = Faculty.objects.filter(user=obj).first()
+        if faculty and faculty.profile_picture:
+            return faculty.profile_picture.url
+        return None
+            
+    def get_role(self, obj):
+        if Student.objects.filter(user=obj).exists():
+            return "Student"
+        if Faculty.objects.filter(user=obj).exists():
+            return "Faculty"
+        return None
+
+#Post serializer   
+class PostSerializer(serializers.ModelSerializer):
+    # user = serializers.SerializerMethodField()
+    author = AuthorSerializer(source="user", read_only=True)
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
     comment_amt = serializers.SerializerMethodField()
     like_amt = serializers.SerializerMethodField()
+    liked = serializers.SerializerMethodField()
+    saved = serializers.SerializerMethodField()
 
     subforum = SubforumSerializer(read_only=True)
     subforum_id = serializers.PrimaryKeyRelatedField(
@@ -184,33 +220,39 @@ class PostSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-
+    
     class Meta:
         model = Post
-        fields = "__all__"
+        exclude = ["user"]
 
+    #Returns amount of likes on a post
     def get_like_amt(self, obj):
         likes = Likes.objects.filter(post=obj)
         return likes.count()
+    
+    def get_liked(self, obj):
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous:
+            return False
+        return Likes.objects.filter(post=obj, user=request.user).exists()
 
+    def get_saved(self, obj):
+        print(self.context)
+        request = self.context.get("request")
+        if not request or request.user and not request.user.is_authenticated:
+            return False
+        return SavePost.objects.filter(user=request.user, post=obj).exists()
+    #Returns amount of comments on a post
     def get_comment_amt(self, obj):
         comments = Comments.objects.filter(post=obj)
         return comments.count()
         
+    
+    #Returns authors username
+    # def get_user(self, obj):
+    #     return obj.user.username
 
-    def get_profile_picture(self, obj):
-        student = Student.objects.filter(user=obj.user)
-        faculty = Faculty.objects.filter(user=obj.user)
-        if student:
-            if student[0].profile_picture:
-                return student[0].profile_picture
-        elif faculty:
-            if faculty[0].profile_picture:
-                return faculty[0].profile_picture
-        
-    def get_user(self, obj):
-        return obj.user.username
-
+#Serializer for a single post (detailed view)
 class SinglePostSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     profile_picture = serializers.SerializerMethodField()
@@ -318,7 +360,7 @@ class ResetPassSerializer(serializers.Serializer):
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
-        fields = ["profile_picture", "bio", "major", "classification"]
+        fields = ["profile_picture", "bio", "major", "classification", "name"]
 
     def validate(self, attrs):
         if not attrs:
@@ -328,7 +370,7 @@ class StudentSerializer(serializers.ModelSerializer):
 class FacultySerializer(serializers.ModelSerializer):
     class Meta:
         model = Faculty
-        fields = ["profile_picture", "bio", "department"]
+        fields = ["profile_picture", "bio", "department", "name"]
 
     def validate(self, attrs):
         if not attrs:
