@@ -22,14 +22,15 @@ class RegisterService:
     def __role(self, user):
         print(self.__validated_data['role'])
         if self.__validated_data['role'].lower() == "student":
-            Student.objects.create(user=user, major=self.__validated_data['major'], classification=self.__validated_data['classification'])
+            Student.objects.create(user=user, major=self.__validated_data['major'], classification=self.__validated_data['classification'], name=self.__validated_data.get('first_name', "") + " " + self.__validated_data('last_name', ""))
         elif self.__validated_data['role'].lower() == "faculty":
-            Faculty.objects.create(user=user, department=self.__validated_data['department'])
+            Faculty.objects.create(user=user, department=self.__validated_data['department'], name=self.__validated_data.get('first_name', "") + " " + self.__validated_data('last_name', ""))
 
     def __create(self):
         self.__validated_data.pop("pass2", None)
-        print(self.__validated_data)
         user = User.objects.create_user(
+            first_name = self.__validated_data.get('first_name', ""),
+            last_name = self.__validated_data('last_name', ""),
             username=self.__validated_data['username'],
             email=self.__validated_data['email'],
             password=self.__validated_data['password'],
@@ -41,9 +42,9 @@ class RegisterService:
         EmailVerificationNotif.send_verification_email(user)
 
 
-class LoginService:                #SRP
-    def __init__(self, username, password):
-        self.__username = username
+class LoginService:
+    def __init__(self, user, password):
+        self.__user = user
         self.__passwd = password
     
     #public
@@ -52,7 +53,9 @@ class LoginService:                #SRP
 
     #private
     def __post(self):
-        user = authenticate(username=self.__username, password=self.__passwd)
+        
+        
+        user = authenticate(username=self.__user, password=self.__passwd)
         return user
 
 
@@ -154,11 +157,16 @@ class SettingsService:
             else:
                 profile_pic = ""
             info = {
-                "Bio": role[0].bio, 
-                "Profile_Picture": profile_pic,
-                "Major": role[0].major,
-                "Class": role[0].classification
+                "id": self.__user.id,
+                "username": self.__user.username,
+                "bio": role[0].bio, 
+                "profile_Picture": profile_pic,
+                "major": role[0].major,
+                "class": role[0].classification,
+                "role": "student",
+                "name": role[0].name
             }
+            
             return info
         elif type(role[0]) == Faculty:
             if role[0].profile_picture:
@@ -166,9 +174,13 @@ class SettingsService:
             else:
                 profile_pic = ""
             info = {
-                "Bio": role[0].bio, 
-                "Profile_Picture": profile_pic,
-                "Department": role[0].department
+                "id": self.__user.id,
+                "username": self.__user.username,
+                "bio": role[0].bio, 
+                "profile_Picture": profile_pic,
+                "department": role[0].department,
+                "role": "faculty",
+                "name": role[0].name
             }
             return info
         
@@ -271,11 +283,16 @@ class ProfileService:
         follower = FollowPerson.objects.filter(following=self.__user)
         return [posts, commented_on, saved_posts, following, follower]
     
-    def delete(self, id):
-        return self.__delete(id)
+class DeletePostService:
+    def __init__(self, user, id):
+        self.__user = user
+        self.__id = id
+
+    def delete(self):
+        return self.__delete()
         
     def __delete(self):
-        post = get_object_or_404(Post, id=id, user=self.__user)
+        post = get_object_or_404(Post, id=self.__id, user=self.__user)
         if post:
             post.delete()
             return True
@@ -313,3 +330,4 @@ class SubforumService:
 
         stats.save()
         return stats
+
