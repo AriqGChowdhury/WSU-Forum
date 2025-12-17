@@ -41,7 +41,7 @@ class RegisterService:
         EmailVerificationNotif.send_verification_email(user)
 
 
-class LoginService:
+class LoginService:                #SRP
     def __init__(self, username, password):
         self.__username = username
         self.__passwd = password
