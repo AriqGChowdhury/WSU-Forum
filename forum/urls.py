@@ -2,20 +2,36 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    #Registration
     path('register', views.UserRegistrationViews.as_view(), name='register'),
+    #Login
     path('login', views.UserLoginViews.as_view(), name='login'),
+    #Delete Account
     path('delete', views.DeleteAccountViews.as_view(), name='delete'),
+    #Reset Password
     path('reset', views.RequestResetView.as_view(), name='reset'),
+    #Homepage
     path('posts', views.AllPostsViews.as_view(), name='post'),
+    #Search tab (in homepage)
     path('search', views.SearchViews.as_view(), name='search'),
+    #Settings
     path('settings', views.SettingsViews.as_view(), name='settings'),
+    #Profile
     path('profile', views.ProfileViews.as_view(), name='profile'),
+    #View someone elses profile
     path('profile/<int:user_id>', views.ProfileViews.as_view(), name='nonself_profile'),
+    path('delete/post/<int:post_id>', views.DeletePostViews.as_view(), name='delete_post'),
+    #Follow/unfollow a user
     path('follow/<int:user_id>', views.FollowViews.as_view(), name='follow'),
+    #Like/unlike a post
     path('<int:post_id>/likes', views.PostLikeView.as_view(), name='like'),
+    #Comment or delete comment on a post
     path('<int:post_id>/comments', views.PostCommentView.as_view(), name='comment'),
+    #View a single post in detail
     path('<int:post_id>', views.SinglePostViews.as_view(), name='singlePost'),
+    #New user activation
     path('activate/<uidb64>/<token>', views.ActivateAccount.as_view(), name='activate'),
+    #Save post
     path('<int:post_id>/save', views.SavePostViews.as_view(), name='save'),
 
     #Subforum URLS
@@ -33,4 +49,3 @@ urlpatterns = [
     path('admin/subforums/pending', views.AdminSubforumApprovalViews.as_view(), name='pending_subforums'),
     path('admin/subforums/<int:subforum_id>/approve', views.AdminSubforumApprovalViews.as_view(), name='approve_subforum'),
 ]
-
