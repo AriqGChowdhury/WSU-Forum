@@ -95,27 +95,35 @@ The app is ready for backend API integration. To connect your backend:
 ### API Endpoints Expected
 
 ```
-POST   /auth/login          - Sign in
-POST   /auth/register       - Sign up
-POST   /auth/sso            - SSO sign in
-POST   /auth/logout         - Sign out
-POST   /auth/verify         - Verify email
-GET    /auth/me             - Get current user
+POST   /login          - Sign in
+POST   /register       - Sign up
+POST   /sso            - SSO sign in
+POST   /logout         - Sign out
+GET    /login          - Get current user
 
-GET    /posts               - Get all posts
-POST   /posts               - Create post
-PATCH  /posts/:id           - Update post
-DELETE /posts/:id           - Delete post
-POST   /posts/:id/like      - Toggle like
-POST   /posts/:id/save      - Toggle save
-POST   /posts/:id/comments  - Add comment
+GET    /posts                              - Get all posts
+POST   /posts                              - Create post
+POST   /search                             - Search
+PATCH  /posts/:id                          - Update post
+DELETE /delete/post/<int:post_id           - Delete post
+POST   /int:post_id/like                   - Toggle like
+POST   /int:post_id/save                   - Toggle save
+POST   /int:post_id/comments               - Add comment
+PATCH  /settings                           - Update settings
+GET    /settings                           - Get current settings
+GET    /profile                            - Get current profile
+GET    /profile/int:user_id                - View someones profile
+POST   /follow/int:user_id                 - Follow/Unfollow someone
+DELETE /int:post_id/comments               - Delete comment on a post
+GET    /posts/int:post_id                  - View a single post in detail
+GET    /subforums                          - Get all subforums with optional filtering
+POST   /subforums                          - Request to create a subforum
+POST /subforums/int:subforum_id/subscribe  - Subscribe to a subforum
+DELETE /subforums/int:subforum_id/subscribe - Unsubscribe to a subforum
+GET /subforums/int:subforum_id/posts        - View all posts in subforum
 
-GET    /topics              - Get all topics
-POST   /topics/:id/follow   - Follow topic
-DELETE /topics/:id/follow   - Unfollow topic
 
-GET    /events              - Get all events
-POST   /events/:id/rsvp     - RSVP to event
+
 
 PATCH  /users/me            - Update profile
 GET    /users/me/saved      - Get saved posts
